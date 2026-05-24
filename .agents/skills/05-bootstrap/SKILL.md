@@ -123,7 +123,17 @@ Este projeto usa o **Kanban Cortex Harness**.
 Execute `/a-bootstrap` uma vez por máquina/projeto para inicializar `.agents/`.
 ```
 
-### 8. Iniciar Cockpit (Kanban Board UI)
+### 8. Criar .github/copilot-instructions.md (se ausente)
+
+GitHub Copilot lê por projeto — não existe instalação global para Copilot.
+
+```bash
+mkdir -p .github
+# copiar de ~/.kanban-cortex-harness-agents/templates/copilot-instructions.md
+# apenas se .github/copilot-instructions.md não existir
+```
+
+### 9. Iniciar Cockpit (Kanban Board UI)
 
 Iniciar o servidor Cockpit em background para visualização em tempo real:
 
