@@ -83,6 +83,23 @@ _print_launch() {
   echo "Não carregue nenhum histórico de sessão anterior."
 }
 
+_pipeline_enabled() {
+  [[ "${PIPELINE_ENABLED:-false}" == "true" || "${HARNESS_PIPELINE_ENABLED:-false}" == "true" ]]
+}
+
+_print_pipeline_hint() {
+  if _pipeline_enabled; then
+    return 0
+  fi
+  echo ""
+  echo "💡 Auto-orquestração (opcional, pós-approve tasks):"
+  echo "   export PIPELINE_ENABLED=true"
+  echo "   # Cursor / .env: HARNESS_PIPELINE_ENABLED=true"
+  echo "   python3 scripts/orchestrator/pipeline.py run $ITEM"
+  echo "   Fronteira de gates: docs/how-to/auto-orchestration.md"
+  echo ""
+}
+
 case "$PHASE" in
   discover)
     _check_file ".agents/steering/product.md" "steering inicializado"
@@ -142,13 +159,18 @@ case "$PHASE" in
     _check_approved "$ITEM_DIR/design.md" "design.md LOCKED"
     _check_approved "$ITEM_DIR/tasks.md" "tasks aprovadas via /a-steering approve tasks"
     _schema_validate_tasks_if_enabled "$ITEM_DIR/tasks.md"
-    if [[ "${PIPELINE_ENABLED:-false}" == "true" ]] && grep -q "approved: true" "$ITEM_DIR/task.yaml" 2>/dev/null; then
-      python scripts/orchestrator/pipeline.py run "$ITEM" >/dev/null 2>&1 &
+    if _pipeline_enabled && grep -q "approved: true" "$ITEM_DIR/task.yaml" 2>/dev/null; then
+      python3 scripts/orchestrator/pipeline.py run "$ITEM" >/dev/null 2>&1 &
+      echo ""
+      echo "🚀 Pipeline iniciado em background (PIPELINE_ENABLED ou HARNESS_PIPELINE_ENABLED)."
+      echo "   Status: python3 scripts/orchestrator/pipeline.py status $ITEM"
+      echo ""
     fi
     _print_launch "a-build" \
       "$ITEM_DIR/design.md" \
       "$ITEM_DIR/tasks.md" \
       ".agents/steering/conventions.md"
+    _print_pipeline_hint
     ;;
 
   review)

@@ -190,4 +190,15 @@ python scripts/audit_writer.py phase_end \
 
 - `/a-steering pause {ITEM}` executa `python scripts/orchestrator/pipeline.py pause {ITEM}`.
 - `/a-steering resume {ITEM}` executa `python scripts/orchestrator/pipeline.py resume {ITEM}`.
-- Após aprovação de tasks, iniciar `python scripts/orchestrator/pipeline.py run {ITEM} &`.
+- Após **`approve tasks`**, o pipeline só dispara se `PIPELINE_ENABLED=true` ou `HARNESS_PIPELINE_ENABLED=true` (opt-in; manual por padrão).
+- `scripts/launch-phase.sh {ITEM} build` imprime hint de pipeline quando essas variáveis estão ausentes.
+
+### Gates × automático (pós-approve tasks, AC-7)
+
+| Até | Humano | Depois de approve tasks |
+|-----|--------|-------------------------|
+| Spec | `approve brief\|requirements\|design\|tasks` | Build/review/test via pipeline **ou** `/a-*` manual |
+| Ship | **`approve ship`** sempre | Pipeline pausa até `resume … ship` |
+| Codex CLI | `$a-*` manual | Fora do registry automático |
+
+Tabela completa: `docs/how-to/auto-orchestration.md`. Gates `approve ship` e spec **não** foram removidos.

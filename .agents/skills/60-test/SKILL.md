@@ -156,3 +156,5 @@ Ao finalizar QA com falha:
 ```bash
 python scripts/orchestrator/handoff.py --item {ITEM} --phase test --status failed
 ```
+
+Cada chamada a `handoff.py` atualiza `handoff-packet.yaml` para a transição seguinte. Schema: `docs/reference/handoff-packet-schema.md`. Em test, `review-report.md` não deve constar em `artifacts_allowed` até após os testes próprios.

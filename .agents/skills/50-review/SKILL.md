@@ -99,8 +99,31 @@ python .agents/skills/50-review/scripts/review-report-gen.py \
 ### Decisão
 
 - **APPROVE** → `/a-test`
-- **REQUEST CHANGES** → builder corrige
+- **REQUEST CHANGES** → builder corrige (ver `review-feedback.md` abaixo)
 - **REJECT 2x** → auto-debug
+
+### REQUEST CHANGES — `review-feedback.md` (obrigatório)
+
+Antes de `handoff.py --status changes_requested`, crie ou atualize:
+
+`.agents/kanban/in-progress/{ITEM}/review-feedback.md`
+
+Formato mínimo (resumo **acionável** — não copie o `review-report.md` inteiro):
+
+```markdown
+# Review feedback — {ITEM}
+
+## Must fix
+- [boundary/task] descrição concreta do que corrigir
+
+## Should fix
+- melhorias opcionais
+
+## Notes
+- contexto mínimo para o builder (sem histórico de chat)
+```
+
+O builder só pode ler este ficheiro quando o pipeline setar `pipeline_retry: true` no `handoff-packet.yaml` (rebuild automático).
 
 ### Audit Trail de Review (FEAT-002 TASK-004)
 
@@ -181,3 +204,5 @@ Ao solicitar mudanças:
 ```bash
 python scripts/orchestrator/handoff.py --item {ITEM} --phase review --status changes_requested
 ```
+
+Cada chamada a `handoff.py` atualiza `handoff-packet.yaml` (próxima fase, `artifacts_allowed`, `session_id`). Schema: `docs/reference/handoff-packet-schema.md`. Não inclua em `artifacts_allowed` entradas proibidas para review (ex.: `review-report.md` antes do diff).

@@ -367,6 +367,36 @@ def _merge_tasks(primary: list[dict], fallback: list[dict]) -> tuple[list[dict],
     return [], None
 
 
+def _apply_pipeline_task_status(tasks: list[dict], task_data: dict) -> list[dict]:
+    """Infer per-task status from pipeline.current_task when tasks.md has no explicit status."""
+    pipeline = task_data.get("pipeline") if isinstance(task_data.get("pipeline"), dict) else {}
+    pipeline_status = str(pipeline.get("status", "")).lower()
+    current_task = str(pipeline.get("current_task", "")).strip()
+
+    if pipeline_status in DONE_STATUSES:
+        return [dict(t, status="done") for t in tasks]
+
+    if not current_task:
+        return tasks
+
+    ids = [t["id"] for t in tasks]
+    if current_task not in ids:
+        return tasks
+
+    current_idx = ids.index(current_task)
+    result = []
+    for i, task in enumerate(tasks):
+        if str(task.get("status", "")).lower() not in ("unknown", ""):
+            result.append(task)
+        elif i < current_idx:
+            result.append(dict(task, status="done"))
+        elif i == current_idx:
+            result.append(dict(task, status="in_progress"))
+        else:
+            result.append(task)
+    return result
+
+
 def _progress(tasks: list[dict], source: str | None) -> dict:
     total = len(tasks)
     completed = sum(
@@ -594,6 +624,7 @@ def build_item_detail(board_path: str | Path, item_id: str) -> tuple[dict | None
 
     yaml_tasks = _tasks_from_task_yaml(task_data)
     tasks, progress_source = _merge_tasks(yaml_tasks, markdown_tasks)
+    tasks = _apply_pipeline_task_status(tasks, task_data)
     phase = pipeline.get("current_phase") or column
     gates = task_data.get("gates") if isinstance(task_data.get("gates"), dict) else item.get("gates", {})
     agents = _agents_from_task_data(task_data, item)

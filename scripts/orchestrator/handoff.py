@@ -111,6 +111,189 @@ def _call_audit_writer(item_id: str, phase: str, status: str) -> None:
         pass
 
 
+_PHASES = ("build", "review", "test", "ship")
+
+# Allowlist padrão por fase destino (FEAT-011 TASK-005 / AC-3)
+DEFAULT_ARTIFACTS_ALLOWED: dict[str, list[str]] = {
+    "build": [
+        "design.md",
+        "tasks.md",
+        ".agents/steering/conventions.md",
+    ],
+    "review": [
+        "design.md",
+        "tasks.md",
+        "src/",
+    ],
+    "test": [
+        "requirements.md",
+        "src/",
+    ],
+    "ship": [
+        "qa-report.md",
+        "task.yaml",
+    ],
+}
+
+FORBIDDEN_ARTIFACTS_BY_PHASE: dict[str, frozenset[str]] = {
+    "review": frozenset({
+        "review-report.md",
+        "requirements.md",
+        "brief.md",
+        ".env",
+        "Implementation Notes",
+    }),
+    "test": frozenset({
+        "review-report.md",
+    }),
+    "build": frozenset({
+        "review-report.md",
+        "review-feedback.md",
+    }),
+    "ship": frozenset(),
+}
+
+
+def _snapshot_phase_sessions(data: dict) -> dict[str, object]:
+    """Captura phase_sessions existentes antes de mutar task.yaml (FEAT-011 TASK-003)."""
+    existing = data.get("phase_sessions")
+    if not isinstance(existing, dict):
+        return {}
+    return {phase: existing.get(phase) for phase in _PHASES if phase in existing}
+
+
+def _ensure_phase_sessions(
+    data: dict,
+    preserved: dict[str, object] | None = None,
+) -> None:
+    """Garante schema phase_sessions sem apagar UUIDs já gravados pelo pipeline."""
+    if "phase_sessions" not in data or not isinstance(data["phase_sessions"], dict):
+        data["phase_sessions"] = {}
+    sessions = data["phase_sessions"]
+    for phase in _PHASES:
+        sessions.setdefault(phase, None)
+    if preserved:
+        for phase, value in preserved.items():
+            if phase in _PHASES and value is not None:
+                sessions[phase] = value
+
+
+def _handoff_packet_path(task_yaml_path: Path) -> Path:
+    return task_yaml_path.parent / "handoff-packet.yaml"
+
+
+def _resolve_next_phase(phase: str, status: str) -> Optional[str]:
+    """Próxima fase do pipeline após conclusão da fase atual."""
+    if status in ("failed", "rejected"):
+        return None
+    if phase == "build" and status == "done":
+        return "review"
+    if phase == "review" and status == "approved":
+        return "test"
+    if phase == "review" and status == "changes_requested":
+        return "build"
+    if phase == "test" and status == "passed":
+        return "ship"
+    return None
+
+
+def validate_artifacts_allowed(
+    to_phase: Optional[str],
+    artifacts_allowed: list[str],
+) -> list[str]:
+    """Retorna entradas proibidas para to_phase (AC-3)."""
+    if not to_phase:
+        return []
+    forbidden = FORBIDDEN_ARTIFACTS_BY_PHASE.get(to_phase, frozenset())
+    violations: list[str] = []
+    for entry in artifacts_allowed:
+        normalized = entry.strip()
+        for bad in forbidden:
+            if normalized == bad or bad in normalized:
+                violations.append(normalized)
+                break
+    return violations
+
+
+def _git_snapshot() -> dict[str, Optional[str]]:
+    try:
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return {"branch": branch or None, "commit": commit or None}
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return {"branch": None, "commit": None}
+
+
+def write_handoff_packet(
+    item_id: str,
+    task_yaml_path: Path,
+    *,
+    phase: str,
+    status: str,
+    task_yaml_data: dict,
+    from_task: Optional[str] = None,
+    artifacts_allowed: Optional[list[str]] = None,
+) -> None:
+    """Escreve handoff-packet.yaml para a transição de fase (FEAT-011 TASK-005)."""
+    to_phase = _resolve_next_phase(phase, status)
+    if artifacts_allowed is None:
+        if to_phase and to_phase in DEFAULT_ARTIFACTS_ALLOWED:
+            artifacts_allowed = list(DEFAULT_ARTIFACTS_ALLOWED[to_phase])
+        else:
+            artifacts_allowed = []
+
+    violations = validate_artifacts_allowed(to_phase, artifacts_allowed)
+    for entry in violations:
+        print(
+            f"AVISO [handoff-packet]: artefato '{entry}' proibido para fase destino "
+            f"'{to_phase}' — remova de artifacts_allowed (AC-3).",
+            file=sys.stderr,
+        )
+
+    sessions = task_yaml_data.get("phase_sessions") or {}
+    session_id = sessions.get(phase) if isinstance(sessions, dict) else None
+
+    existing_retry = False
+    packet_path = _handoff_packet_path(task_yaml_path)
+    if packet_path.exists():
+        try:
+            with open(packet_path) as f:
+                prev = yaml.safe_load(f) or {}
+            existing_retry = bool(prev.get("pipeline_retry", False))
+        except (OSError, yaml.YAMLError):
+            existing_retry = False
+
+    blockers: list[str] = []
+    if status in ("failed", "rejected"):
+        blockers.append(f"{phase}:{status}")
+
+    packet = {
+        "item": item_id,
+        "from_phase": phase,
+        "to_phase": to_phase,
+        "timestamp": _now_iso(),
+        "session_id": session_id,
+        "git": _git_snapshot(),
+        "artifacts_allowed": artifacts_allowed,
+        "status": status,
+        "blockers": blockers,
+        "pipeline_retry": existing_retry,
+    }
+    if from_task:
+        packet["from_task"] = from_task
+
+    with open(packet_path, "w") as f:
+        yaml.dump(packet, f, default_flow_style=False, allow_unicode=True)
+
+
 def _ensure_pipeline_section(data: dict) -> None:
     """Garante que as seções pipeline e phase_status existem no data."""
     if "pipeline" not in data or not isinstance(data["pipeline"], dict):
@@ -135,7 +318,14 @@ def _ensure_pipeline_section(data: dict) -> None:
 # API pública
 # ---------------------------------------------------------------------------
 
-def record_handoff(item_id: str, phase: str, status: str) -> int:
+def record_handoff(
+    item_id: str,
+    phase: str,
+    status: str,
+    *,
+    from_task: Optional[str] = None,
+    artifacts_allowed: Optional[list[str]] = None,
+) -> int:
     """
     Registra a conclusão de uma fase em task.yaml.
 
@@ -178,11 +368,27 @@ def record_handoff(item_id: str, phase: str, status: str) -> int:
         print(f"ERRO: {exc}", file=sys.stderr)
         return 1
 
-    # Garante seções necessárias
+    # Garante seções necessárias (preserva phase_sessions do pipeline — isolamento por fase)
+    preserved_sessions = _snapshot_phase_sessions(data)
     _ensure_pipeline_section(data)
+    _ensure_phase_sessions(data, preserved_sessions)
 
-    # Atualiza phase_status
-    data["phase_status"][phase] = status
+    # Per-task progress (FEAT-011 TASK-008): handoff --task atualiza task_progress
+    defer_phase_status = False
+    if from_task:
+        if "task_progress" not in data or not isinstance(data["task_progress"], dict):
+            data["task_progress"] = {}
+        task_state = status
+        if status in ("approved", "passed"):
+            task_state = "done"
+        elif status in ("rejected", "changes_requested"):
+            task_state = "failed"
+        data["task_progress"][from_task] = task_state
+        if phase == "build" and status == "done":
+            defer_phase_status = True
+
+    if not defer_phase_status:
+        data["phase_status"][phase] = status
 
     # Tratamento especial: changes_requested incrementa rejection_count
     if phase == "review" and status == "changes_requested":
@@ -196,6 +402,20 @@ def record_handoff(item_id: str, phase: str, status: str) -> int:
         _write_task_yaml(path, data)
     except OSError as exc:
         print(f"ERRO ao escrever task.yaml: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        write_handoff_packet(
+            item_id,
+            path,
+            phase=phase,
+            status=status,
+            task_yaml_data=data,
+            from_task=from_task,
+            artifacts_allowed=artifacts_allowed,
+        )
+    except OSError as exc:
+        print(f"ERRO ao escrever handoff-packet.yaml: {exc}", file=sys.stderr)
         return 1
 
     print(f"[handoff] {item_id} phase={phase} status={status} registrado.", file=sys.stdout)
@@ -227,13 +447,23 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=sorted(VALID_STATUSES),
         help="Status da conclusão",
     )
+    parser.add_argument(
+        "--task",
+        default=None,
+        help="Task Kanban de origem (ex: TASK-003) para from_task no handoff-packet",
+    )
     return parser
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    return record_handoff(args.item, args.phase, args.status)
+    return record_handoff(
+        args.item,
+        args.phase,
+        args.status,
+        from_task=args.task,
+    )
 
 
 if __name__ == "__main__":
