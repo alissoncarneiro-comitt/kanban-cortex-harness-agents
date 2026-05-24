@@ -1,0 +1,40 @@
+pipeline:
+  invoker: auto
+  max_parallel_tasks: 8  # override intencional (design default: 2; WIP local)
+  task_dag:
+    enabled: false
+  handoff:
+    required: true
+    missing_handoff_error: true
+  retry_limit: 2
+  phase_timeout_minutes: 60
+  poll_interval_seconds: 5
+  phases:
+    - name: build
+      skill: a-build
+      skill_file: .agents/skills/40-build/SKILL.md
+      auto: true
+      gate: null
+      next_on_success: review
+      next_on_failure: error
+    - name: review
+      skill: a-review
+      skill_file: .agents/skills/50-review/SKILL.md
+      auto: true
+      gate: null
+      next_on_success: test
+      next_on_reject: build
+      next_on_escalate: escalated
+    - name: test
+      skill: a-test
+      skill_file: .agents/skills/60-test/SKILL.md
+      auto: true
+      gate: null
+      next_on_success: awaiting_ship_approval
+      next_on_failure: error
+    - name: ship
+      skill: a-ship
+      skill_file: .agents/skills/70-ship/SKILL.md
+      auto: false
+      gate: ship
+      next_on_success: done
