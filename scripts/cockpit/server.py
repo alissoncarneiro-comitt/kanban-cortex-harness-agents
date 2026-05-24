@@ -276,6 +276,20 @@ def _operations_ui_enabled() -> bool:
     )
 
 
+def _rich_markdown_enabled() -> bool:
+    """Rich markdown is on by default after setup.sh installs markdown-renderer.js."""
+    return os.environ.get("COCKPIT_RICH_MARKDOWN_ENABLED", "true").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+def build_cockpit_config() -> dict:
+    return {
+        "rich_markdown_enabled": _rich_markdown_enabled(),
+        "operations_ui_enabled": _operations_ui_enabled(),
+    }
+
+
 def _read_yaml_file(path: Path) -> tuple[dict | None, str | None]:
     if not path.exists():
         return None, "not found"
@@ -682,6 +696,10 @@ class CockpitHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self._serve_html()
+        elif self.path == "/api/config":
+            self._serve_config()
+        elif self.path == "/markdown-renderer.js":
+            self._serve_markdown_renderer()
         elif self.path == "/api/board":
             self._serve_board()
         elif self.path.startswith("/api/item/") and "/artifact/" in self.path:
@@ -727,6 +745,24 @@ class CockpitHandler(BaseHTTPRequestHandler):
             content = b"<html><body><h1>cockpit kanban</h1></body></html>"
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _serve_config(self):
+        self._send_json(build_cockpit_config(), status=200)
+
+    def _serve_markdown_renderer(self):
+        js_path = self.__class__.html_path.parent / "markdown-renderer.js"
+        if not js_path.is_file():
+            js_path = PROJECT_ROOT / "src" / "cockpit" / "markdown-renderer.js"
+        try:
+            content = js_path.read_bytes()
+        except OSError:
+            self._send_json({"error": "markdown-renderer.js not found"}, status=404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)

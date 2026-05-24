@@ -671,6 +671,58 @@
       white-space: pre-wrap;
     }
 
+    .markdown-body blockquote {
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      border-left: 3px solid var(--accent);
+      background: var(--bg);
+      color: var(--text-muted);
+    }
+
+    .markdown-body .md-table-wrap {
+      overflow-x: auto;
+      margin: 0 0 12px;
+    }
+
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .markdown-body th,
+    .markdown-body td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .markdown-body th {
+      background: var(--surface2);
+      font-weight: 600;
+    }
+
+    .markdown-body .mermaid {
+      margin: 12px 0;
+      min-height: 80px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .markdown-body .mermaid-error-msg {
+      color: var(--expedite);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .markdown-body a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+
     /* ===== Responsive 768px+ ===== */
     @media (max-width: 1023px) {
       :root { --active-column-width: 240px; }
@@ -750,11 +802,24 @@
   <aside id="item-detail" aria-live="polite"></aside>
   <div id="markdown-modal" aria-hidden="true"></div>
 
+  <script src="/markdown-renderer.js"></script>
   <script>
     // ===== Estado =====
     let boardData = null;
     let eventSource = null;
     let reconnectTimer = null;
+    let cockpitConfig = { rich_markdown_enabled: true };
+
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          cockpitConfig = await res.json();
+        }
+      } catch (_) {
+        /* fallback single-project */
+      }
+    }
 
     // ===== Timer ao vivo (TASK-002) =====
     let lastUpdateTs = 0;
@@ -1069,6 +1134,10 @@
         const data = await res.json();
         const title = `${data.item_id || itemId} · ${(data.artifact && data.artifact.label) || artifactId}`;
         modal.innerHTML = markdownShell(title, renderMarkdown(data.markdown || ''));
+        const body = modal.querySelector('.markdown-body');
+        if (cockpitConfig.rich_markdown_enabled && window.CockpitMarkdown && body) {
+          await window.CockpitMarkdown.scheduleMermaidRender(body);
+        }
       } catch (err) {
         modal.innerHTML = markdownShell('Evidência indisponível', `<p>${escHtml(err.message)}</p>`);
       }
@@ -1094,6 +1163,11 @@
     }
 
     function renderMarkdown(markdown) {
+      if (window.CockpitMarkdown) {
+        return window.CockpitMarkdown.renderMarkdown(markdown, {
+          rich: Boolean(cockpitConfig.rich_markdown_enabled),
+        });
+      }
       const lines = String(markdown || '').split(/\r?\n/);
       const html = [];
       let inList = false;
@@ -1307,7 +1381,7 @@
     document.getElementById('board-search').addEventListener('input', applySearch);
     document.addEventListener('keydown', handleGlobalShortcuts);
     initLiveTimer();
-    fetchBoard().then(() => connectSSE());
+    fetchConfig().then(() => fetchBoard()).then(() => connectSSE());
   </script>
 </body>
 </html>
