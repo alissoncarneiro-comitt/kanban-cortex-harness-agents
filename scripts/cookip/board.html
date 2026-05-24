@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban Cortex Harness Agents</title>
+  <style>
+    /* ===== Reset e Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --expedite: #ef4444;
+      --fixed-date: #eab308;
+      --standard: #3b82f6;
+      --intangible: #a855f7;
+      --updated-border: #22d3ee;
+      --radius: 8px;
+      --gap: 8px;
+      --header-height: 61px;
+      --active-column-width: 280px;
+      --empty-column-width: 64px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== Header ===== */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      min-height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header h1 .h1-main { display: flex; align-items: baseline; gap: 5px; }
+    header h1 span { color: var(--accent); }
+    header h1 small {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.2px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    #live-timer {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .card-summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .card-progress-mini {
+      flex: 1;
+      height: 3px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .card-progress-mini-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width 0.3s ease-out;
+    }
+
+    .card-agent-mini {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .card-agent-mini-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: var(--accent);
+      background: rgba(59,130,246,0.1);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    #status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    #board-search {
+      width: min(320px, 32vw);
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 0 10px;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    #board-search:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    .dot.offline { background: #ef4444; animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ===== Banner de Reconexão ===== */
+    #reconnect-banner {
+      display: none;
+      background: #7c3aed;
+      color: #fff;
+      text-align: center;
+      padding: 10px;
+      font-size: 13px;
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      right: 0;
+      z-index: 99;
+    }
+
+    /* ===== Board ===== */
+    #board {
+      display: flex;
+      flex-direction: row;
+      gap: var(--gap);
+      padding: 10px;
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      right: 0;
+      bottom: 0;
+      min-height: 0;
+      align-items: flex-start;
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-gutter: stable;
+      flex-wrap: nowrap;
+      justify-content: space-between;
+    }
+
+    /* ===== Coluna ===== */
+    .column {
+      flex: 0 0 var(--active-column-width);
+      min-width: var(--active-column-width);
+      height: 100%;
+      min-height: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .column.has-items {
+      flex: 0 0 var(--active-column-width);
+      min-width: var(--active-column-width);
+      max-width: var(--active-column-width);
+    }
+
+    .column.is-empty {
+      flex: 1 1 var(--empty-column-width);
+      min-width: 56px;
+      opacity: 0.72;
+    }
+
+    .column.is-empty .column-header {
+      min-height: 132px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 8px;
+    }
+
+    .column.is-empty .column-header h2 {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .column.is-empty .column-meta,
+    .column.is-empty .column-cards {
+      display: none;
+    }
+
+    .column-header {
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .column-header h2 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .column-meta {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .badge-wip {
+      background: var(--border);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .badge-count {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .column-cards {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 60px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .empty-column {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-align: center;
+      padding: 16px 0;
+      font-style: italic;
+    }
+
+    /* ===== Card ===== */
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 10px;
+      cursor: default;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+      width: 100%;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .card:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .card.hidden-by-search {
+      display: none;
+    }
+
+    .card.updated {
+      border-color: var(--updated-border);
+      animation: fadeInCard 0.4s ease-out;
+    }
+
+    @keyframes fadeInCard {
+      from { opacity: 0.4; transform: translateY(-4px); }
+      to   { opacity: 1;   transform: translateY(0); }
+    }
+
+    .card-id {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: monospace;
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.12);
+      border-radius: 3px;
+      padding: 1px 5px;
+      display: inline-block;
+      margin-bottom: 5px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.35;
+      margin-bottom: 6px;
+      overflow-wrap: anywhere;
+    }
+
+    .card-cos {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .cos-expedite   { background: rgba(239,68,68,0.15);  color: #f87171; }
+    .cos-standard   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .cos-fixed-date { background: rgba(234,179,8,0.15);  color: #facc15; }
+    .cos-intangible { background: rgba(168,85,247,0.15); color: #c084fc; }
+
+    /* ===== Detail ===== */
+    #item-detail {
+      position: fixed;
+      top: var(--header-height);
+      right: 0;
+      bottom: 0;
+      width: min(420px, 100vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: -12px 0 28px rgba(0,0,0,0.24);
+      transform: translateX(100%);
+      transition: transform 0.18s ease-out;
+      z-index: 120;
+      padding: 18px;
+      overflow-y: auto;
+    }
+
+    #item-detail.open {
+      transform: translateX(0);
+    }
+
+    .detail-header {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 10;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+
+    .detail-close {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 10px 0 8px;
+      border: 1px solid rgba(148,163,184,0.18);
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ef4444, #eab308);
+      transition: width 0.45s ease-out, background 0.25s ease-out;
+    }
+
+    .progress-fill.progress-low { background: #ef4444; }
+    .progress-fill.progress-mid { background: #eab308; }
+    .progress-fill.progress-high { background: #3b82f6; }
+    .progress-fill.progress-done { background: #22c55e; }
+
+    .progress-fill.is-running {
+      background-size: 24px 24px;
+      background-image: linear-gradient(
+        45deg,
+        rgba(255,255,255,0.18) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255,255,255,0.18) 50%,
+        rgba(255,255,255,0.18) 75%,
+        transparent 75%,
+        transparent
+      );
+      animation: progressRun 0.8s linear infinite;
+    }
+
+    @keyframes progressRun {
+      from { background-position: 0 0; }
+      to { background-position: 24px 0; }
+    }
+
+    .agent-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .agent-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 800;
+      color: #020617;
+    }
+
+    .agent-done .agent-icon { background: #22c55e; }
+    .agent-running .agent-icon { background: #3b82f6; color: #fff; animation: agentRun 0.9s linear infinite; }
+    .agent-waiting .agent-icon { background: #eab308; }
+    .agent-blocked .agent-icon { background: #ef4444; color: #fff; }
+
+    @keyframes agentRun {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .detail-section {
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      margin-top: 14px;
+    }
+
+    .detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .task-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .task-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .task-status-done { color: #22c55e; }
+    .task-status-done .task-dot { background: #22c55e; }
+
+    .task-status-running { color: #eab308; }
+    .task-status-running .task-dot { background: #eab308; animation: pulse 1.5s infinite; }
+
+    .task-status-blocked { color: #ef4444; }
+    .task-status-blocked .task-dot { background: #ef4444; }
+
+    .task-status-error { color: #ef4444; }
+    .task-status-error .task-dot { background: #ef4444; }
+
+    .task-status-pending { color: var(--text-muted); }
+    .task-status-pending .task-dot { background: var(--border); }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .evidence-button {
+      min-height: 26px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 4px 8px;
+      text-align: left;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .evidence-button:hover,
+    .evidence-button:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    #markdown-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 180;
+      background: rgba(15,23,42,0.74);
+    }
+
+    #markdown-modal.open {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .markdown-dialog {
+      width: min(920px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+
+    .markdown-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .markdown-header h2 {
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .markdown-body {
+      padding: 20px;
+      overflow: auto;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .markdown-body h1,
+    .markdown-body h2,
+    .markdown-body h3 {
+      margin: 18px 0 8px;
+      line-height: 1.25;
+    }
+
+    .markdown-body h1:first-child,
+    .markdown-body h2:first-child,
+    .markdown-body h3:first-child {
+      margin-top: 0;
+    }
+
+    .markdown-body p,
+    .markdown-body ul,
+    .markdown-body pre {
+      margin: 0 0 12px;
+    }
+
+    .markdown-body ul {
+      padding-left: 20px;
+    }
+
+    .markdown-body code,
+    .markdown-body pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .markdown-body code {
+      padding: 1px 4px;
+    }
+
+    .markdown-body pre {
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    /* ===== Responsive 768px+ ===== */
+    @media (max-width: 1023px) {
+      :root { --active-column-width: 240px; }
+    }
+
+    @media (max-width: 767px) {
+      :root { --header-height: 106px; }
+      header { gap: 12px; flex-wrap: wrap; }
+      #board-search { width: 100%; }
+      #board { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+      .column,
+      .column.has-items,
+      .column.is-empty {
+        flex: none;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        min-width: 0;
+        max-width: none;
+      }
+      .column.is-empty .column-header {
+        min-height: auto;
+        justify-content: flex-start;
+        padding: 12px 14px 10px;
+      }
+      .column.is-empty .column-header h2 {
+        writing-mode: horizontal-tb;
+        transform: none;
+      }
+      .column.is-empty .column-meta,
+      .column.is-empty .column-cards {
+        display: flex;
+      }
+    }
+
+    /* ===== Loading ===== */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    #loading .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div></div>
+
+  <header>
+    <h1>
+      <span class="h1-main"><span>Kanban</span> Cortex Harness Agents</span>
+      <small>Gestão de Fluxo Baseada em Cadências Kanban</small>
+    </h1>
+    <input id="board-search" type="search" placeholder="Buscar item ou fase" autocomplete="off">
+    <div id="status-indicator">
+      <div class="dot" id="conn-dot"></div>
+      <span id="conn-label">conectando...</span>
+      <span id="live-timer" aria-live="polite" aria-atomic="true"></span>
+    </div>
+  </header>
+
+  <div id="reconnect-banner">🔄 Reconectando...</div>
+
+  <div id="board"></div>
+  <aside id="item-detail" aria-live="polite"></aside>
+  <div id="markdown-modal" aria-hidden="true"></div>
+
+  <script>
+    // ===== Estado =====
+    let boardData = null;
+    let eventSource = null;
+    let reconnectTimer = null;
+
+    // ===== Timer ao vivo (TASK-002) =====
+    let lastUpdateTs = 0;
+    let _timerInterval = null;
+
+    function formatElapsed(seconds) {
+      if (seconds < 2) return 'agora';
+      if (seconds < 60) return `há ${seconds}s`;
+      const m = Math.floor(seconds / 60);
+      return `há ${m}m`;
+    }
+
+    function updateLiveTimer() {
+      const el = document.getElementById('live-timer');
+      if (!el) return;
+      const elapsed = Math.floor((Date.now() - lastUpdateTs) / 1000);
+      el.textContent = lastUpdateTs ? formatElapsed(elapsed) : '';
+    }
+
+    function resetLiveTimer() {
+      lastUpdateTs = Date.now();
+      updateLiveTimer();
+    }
+
+    function initLiveTimer() {
+      lastUpdateTs = Date.now();
+      if (_timerInterval) clearInterval(_timerInterval);
+      _timerInterval = setInterval(updateLiveTimer, 1000);
+    }
+
+    // ===== Card Summary (TASK-005/006) =====
+    const cardSummaryCache = new Map();
+
+    function fetchCardSummaries(itemIds) {
+      const missing = itemIds.filter(id => !cardSummaryCache.has(id));
+      missing.forEach(id => {
+        fetch(`/api/item/${encodeURIComponent(id)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (!data) return;
+            const progress = data.progress || {};
+            const statuses = data.agent_statuses || [];
+            const summary = {
+              progress_pct: Number(progress.percent || 0),
+              tasks_completed: Number(progress.completed || 0),
+              tasks_total: Number(progress.total || 0),
+              running_agents: statuses
+                .filter(a => a.status === 'running')
+                .map(a => a.name || a),
+            };
+            cardSummaryCache.set(id, summary);
+            updateCardSummary(id, summary);
+          })
+          .catch(() => {});
+      });
+      itemIds.filter(id => cardSummaryCache.has(id)).forEach(id => {
+        updateCardSummary(id, cardSummaryCache.get(id));
+      });
+    }
+
+    function updateCardSummary(id, summary) {
+      const card = document.querySelector(`.card[data-item-id="${CSS.escape(id)}"]`);
+      if (!card) return;
+
+      const existing = card.querySelector('.card-summary');
+      if (existing) existing.remove();
+      const existingAgents = card.querySelector('.card-agent-mini');
+      if (existingAgents) existingAgents.remove();
+
+      if (summary.tasks_total > 0) {
+        const pct = summary.progress_pct;
+        const summaryEl = document.createElement('div');
+        summaryEl.className = 'card-summary';
+        summaryEl.innerHTML = `
+          <div class="card-progress-mini">
+            <div class="card-progress-mini-fill" style="width:${pct}%"></div>
+          </div>
+          <span>${summary.tasks_completed}/${summary.tasks_total}</span>
+          <span>${pct}%</span>
+        `;
+        card.appendChild(summaryEl);
+      }
+
+      if (summary.running_agents.length > 0) {
+        const agentsEl = document.createElement('div');
+        agentsEl.className = 'card-agent-mini';
+        agentsEl.innerHTML = summary.running_agents
+          .map(name => `<span class="card-agent-mini-chip"><span aria-hidden="true">▶</span>${escHtml(name)}</span>`)
+          .join('');
+        card.appendChild(agentsEl);
+      }
+    }
+
+    // ===== Ícones de evidência (TASK-004) =====
+    function evidenceIcon(filename) {
+      const f = String(filename || '').toLowerCase();
+      if (f === 'qa-report.md' || f === 'review-report.md') return '📊';
+      if (f === 'security-report.md') return '🔒';
+      if (f === 'failure-modes-review.md') return '⚠️';
+      if (f === 'acceptance-criteria.md') return '✅';
+      if (f === 'tasks.md' || f === 'task.yaml') return '📋';
+      if (f === 'stakeholder-map.md') return '🗺️';
+      if (f === 'pipeline.log') return '📝';
+      return '📄';
+    }
+
+    function taskStatusLabel(status) {
+      const s = String(status || '').toLowerCase();
+      if (s === 'done' || s === 'completed') return 'concluído';
+      if (s === 'in_progress' || s === 'running') return 'em andamento';
+      if (s === 'blocked') return 'bloqueado';
+      if (s === 'error') return 'erro';
+      return 'pendente';
+    }
+
+    function taskStatusDotClass(status) {
+      const s = String(status || '').toLowerCase();
+      if (s === 'done' || s === 'completed') return 'done';
+      if (s === 'in_progress' || s === 'running') return 'running';
+      if (s === 'blocked') return 'blocked';
+      if (s === 'error') return 'error';
+      return 'pending';
+    }
+
+    // ===== Utilitários =====
+    function cosClass(cos) {
+      if (!cos) return 'cos-standard';
+      const c = cos.toLowerCase().replace(/\s+/g, '-');
+      if (c.includes('expedite'))   return 'cos-expedite';
+      if (c.includes('fixed'))      return 'cos-fixed-date';
+      if (c.includes('intangible')) return 'cos-intangible';
+      return 'cos-standard';
+    }
+
+    function columnStateClass(count) {
+      return count > 0 ? 'has-items' : 'is-empty';
+    }
+
+    // ===== Renderização =====
+    function renderBoard(data) {
+      boardData = data;
+      const board = data.board || {};
+      const columns = board.columns || [];
+      const items = board.items || {};
+      const container = document.getElementById('board');
+
+      // Mantém referência de ids anteriores para detectar updated
+      const previousIds = new Set(
+        [...container.querySelectorAll('.card-id')].map(el => el.textContent.trim())
+      );
+
+      container.innerHTML = '';
+      const activeColumns = columns.filter(col => {
+        const colKey = (col.name || '').toLowerCase();
+        return (items[colKey] || []).length > 0;
+      }).length;
+      const emptyColumns = Math.max(columns.length - activeColumns, 0);
+      if (activeColumns > 0) {
+        const gap = 8;
+        const emptyWidth = 64;
+        const boardPadding = 20;
+        const availableWidth = container.clientWidth - boardPadding - (emptyColumns * emptyWidth) - (Math.max(columns.length - 1, 0) * gap);
+        const balancedWidth = Math.max(260, Math.min(360, Math.floor(availableWidth / activeColumns)));
+        container.style.setProperty('--active-column-width', `${balancedWidth}px`);
+      }
+
+      columns.forEach(col => {
+        const colName = col.name || '';
+        const colKey  = colName.toLowerCase();
+        const wip     = col.wip_limit != null ? col.wip_limit : '∞';
+        const colItems = items[colKey] || [];
+        const count   = colItems.length;
+
+        const colEl = document.createElement('div');
+        colEl.className = `column ${columnStateClass(count)}`;
+        colEl.dataset.col = colKey;
+
+        // Header
+        const hdr = document.createElement('div');
+        hdr.className = 'column-header';
+        hdr.innerHTML = `
+          <h2>${escHtml(colName)}</h2>
+          <div class="column-meta">
+            <span class="badge-wip">WIP: ${wip}</span>
+            <span class="badge-count">${count} ${count === 1 ? 'item' : 'itens'}</span>
+          </div>
+        `;
+        colEl.appendChild(hdr);
+
+        // Cards
+        const cardsEl = document.createElement('div');
+        cardsEl.className = 'column-cards';
+
+        if (colItems.length === 0) {
+          cardsEl.innerHTML = '<div class="empty-column">nenhum item</div>';
+        } else {
+          colItems.forEach(item => {
+            const id    = item.id || '';
+            const title = item.title || '(sem título)';
+            const cos   = item.class_of_service || 'Standard';
+            const isNew = !previousIds.has(id);
+
+            const card = document.createElement('div');
+            card.className = 'card' + (isNew && previousIds.size > 0 ? ' updated' : '');
+            card.tabIndex = 0;
+            card.dataset.itemId = id;
+            card.dataset.searchText = `${id} ${title} ${colName}`.toLowerCase();
+            card.innerHTML = `
+              <div class="card-id">${escHtml(id)}</div>
+              <div class="card-title">${escHtml(title)}</div>
+              <span class="card-cos ${cosClass(cos)}">${escHtml(cos)}</span>
+            `;
+            card.addEventListener('click', () => openItemDetail(id));
+            card.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') openItemDetail(id);
+            });
+
+            if (isNew && previousIds.size > 0) {
+              setTimeout(() => card.classList.remove('updated'), 3000);
+            }
+
+            cardsEl.appendChild(card);
+          });
+        }
+
+        colEl.appendChild(cardsEl);
+        container.appendChild(colEl);
+      });
+      applySearch();
+      const allIds = columns.flatMap(col => (items[(col.name || '').toLowerCase()] || []).map(it => it.id).filter(Boolean));
+      fetchCardSummaries(allIds);
+    }
+
+    async function openItemDetail(itemId) {
+      const detail = document.getElementById('item-detail');
+      detail.className = 'open';
+      detail.innerHTML = '<div class="detail-row">Carregando...</div>';
+      try {
+        const res = await fetch(`/api/item/${encodeURIComponent(itemId)}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        renderItemDetail(data);
+      } catch (err) {
+        detail.innerHTML = `
+          <div class="detail-header">
+            <strong>Detalhe indisponível</strong>
+            <button class="detail-close" type="button" onclick="closeItemDetail()">×</button>
+          </div>
+          <div class="detail-row">${escHtml(err.message)}</div>
+        `;
+      }
+    }
+
+    function renderItemDetail(data) {
+      const detail = document.getElementById('item-detail');
+      const item = data.item || {};
+      const progress = data.progress || { percent: 0, completed: 0, total: 0, source: '' };
+      const agents = data.agents || [];
+      const agentStatuses = data.agent_statuses || agents.map(agent => ({ name: agent, status: 'waiting' }));
+      const tasks = data.tasks || [];
+      const evidence = data.evidence || [];
+      const progressPercent = Number(progress.percent || 0);
+      const progressClass = progressClassName(progressPercent);
+      const progressRunningClass = progressPercent < 100 ? ' is-running' : '';
+      detail.className = 'open';
+      detail.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <div class="card-id">${escHtml(item.id || '')}</div>
+            <h2>${escHtml(item.title || '(sem título)')}</h2>
+          </div>
+          <button class="detail-close" type="button" onclick="closeItemDetail()">×</button>
+        </div>
+        <div class="detail-row"><span>Fase</span><strong>${escHtml(data.phase || item.column || 'não atribuído')}</strong></div>
+        <div class="progress-track"><div class="progress-fill ${progressClass}${progressRunningClass}" style="width:${progressPercent}%"></div></div>
+        <div class="detail-row"><span>Progresso</span><strong>${progressPercent}% (${Number(progress.completed || 0)}/${Number(progress.total || 0)})</strong></div>
+        <div class="detail-row"><span>Fonte</span><strong>${escHtml(progress.source || 'não disponível')}</strong></div>
+        <div class="detail-section">
+          <strong>Agentes</strong>
+          <div class="agent-list">${agentStatuses.length ? agentStatuses.map(agent => renderAgentChip(agent)).join('') : '<div class="detail-row">não atribuído</div>'}</div>
+        </div>
+        <div class="detail-section">
+          <strong>Evidências</strong>
+          <div class="evidence-grid">${evidence.length ? evidence.map(artifact => renderEvidenceButton(item.id, artifact)).join('') : '<div class="detail-row">nenhuma evidência markdown</div>'}</div>
+        </div>
+        <div class="detail-section">
+          <strong>Tasks</strong>
+          <div class="detail-list">${tasks.length ? tasks.map(task => `<div class="detail-row"><span class="task-label">${escHtml(task.id)} ${escHtml(task.title || '')}</span><span class="task-status-badge task-status-${taskStatusDotClass(task.status)}"><span class="task-dot" aria-hidden="true"></span>${escHtml(taskStatusLabel(task.status))}</span></div>`).join('') : '<div class="detail-row">nenhuma task detalhada</div>'}</div>
+        </div>
+      `;
+    }
+
+    function renderEvidenceButton(itemId, artifact) {
+      const filename = artifact.filename || artifact.id || '';
+      const icon = evidenceIcon(filename);
+      const label = escHtml(artifact.label || filename);
+      return `
+        <button class="evidence-button" type="button" onclick="openArtifact('${escJs(itemId)}', '${escJs(artifact.id)}')">
+          <span aria-hidden="true">${icon}</span>${label}
+        </button>
+      `;
+    }
+
+    async function openArtifact(itemId, artifactId) {
+      const modal = document.getElementById('markdown-modal');
+      modal.className = 'open';
+      modal.setAttribute('aria-hidden', 'false');
+      modal.innerHTML = markdownShell('Carregando...', '<p>Carregando evidência...</p>');
+      try {
+        const res = await fetch(`/api/item/${encodeURIComponent(itemId)}/artifact/${encodeURIComponent(artifactId)}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const title = `${data.item_id || itemId} · ${(data.artifact && data.artifact.label) || artifactId}`;
+        modal.innerHTML = markdownShell(title, renderMarkdown(data.markdown || ''));
+      } catch (err) {
+        modal.innerHTML = markdownShell('Evidência indisponível', `<p>${escHtml(err.message)}</p>`);
+      }
+    }
+
+    function markdownShell(title, bodyHtml) {
+      return `
+        <section class="markdown-dialog" role="dialog" aria-modal="true" aria-label="${escHtml(title)}">
+          <div class="markdown-header">
+            <h2>${escHtml(title)}</h2>
+            <button class="detail-close" type="button" onclick="closeMarkdownModal()">×</button>
+          </div>
+          <div class="markdown-body">${bodyHtml}</div>
+        </section>
+      `;
+    }
+
+    function closeMarkdownModal() {
+      const modal = document.getElementById('markdown-modal');
+      modal.className = '';
+      modal.setAttribute('aria-hidden', 'true');
+      modal.innerHTML = '';
+    }
+
+    function renderMarkdown(markdown) {
+      const lines = String(markdown || '').split(/\r?\n/);
+      const html = [];
+      let inList = false;
+      let inCode = false;
+      let codeLines = [];
+      function closeList() {
+        if (inList) {
+          html.push('</ul>');
+          inList = false;
+        }
+      }
+      lines.forEach(line => {
+        if (line.trim().startsWith('```')) {
+          if (inCode) {
+            html.push(`<pre><code>${escHtml(codeLines.join('\n'))}</code></pre>`);
+            codeLines = [];
+            inCode = false;
+          } else {
+            closeList();
+            inCode = true;
+          }
+          return;
+        }
+        if (inCode) {
+          codeLines.push(line);
+          return;
+        }
+        if (!line.trim()) {
+          closeList();
+          return;
+        }
+        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          closeList();
+          const level = heading[1].length;
+          html.push(`<h${level}>${formatInlineMarkdown(heading[2])}</h${level}>`);
+          return;
+        }
+        const bullet = line.match(/^[-*]\s+(.+)$/);
+        if (bullet) {
+          if (!inList) {
+            html.push('<ul>');
+            inList = true;
+          }
+          html.push(`<li>${formatInlineMarkdown(bullet[1])}</li>`);
+          return;
+        }
+        closeList();
+        html.push(`<p>${formatInlineMarkdown(line)}</p>`);
+      });
+      if (inCode) html.push(`<pre><code>${escHtml(codeLines.join('\n'))}</code></pre>`);
+      closeList();
+      return html.join('');
+    }
+
+    function formatInlineMarkdown(text) {
+      return escHtml(text)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function progressClassName(percent) {
+      if (percent >= 100) return 'progress-done';
+      if (percent >= 75) return 'progress-high';
+      if (percent >= 35) return 'progress-mid';
+      return 'progress-low';
+    }
+
+    function agentIcon(status) {
+      if (status === 'done') return '✓';
+      if (status === 'running') return '▶';
+      if (status === 'blocked') return '!';
+      return '…';
+    }
+
+    function agentLabel(status) {
+      if (status === 'done') return 'concluído';
+      if (status === 'running') return 'trabalhando';
+      if (status === 'blocked') return 'bloqueado';
+      return 'aguardando';
+    }
+
+    function renderAgentChip(agent) {
+      const name = agent.name || agent;
+      const status = agent.status || 'waiting';
+      return `
+        <span class="agent-chip agent-${escHtml(status)}" title="${escHtml(agentLabel(status))}">
+          <span class="agent-icon">${escHtml(agentIcon(status))}</span>
+          <span>${escHtml(name)}</span>
+        </span>
+      `;
+    }
+
+    function closeItemDetail() {
+      document.getElementById('item-detail').className = '';
+    }
+
+    function applySearch() {
+      const input = document.getElementById('board-search');
+      if (!input) return;
+      const query = input.value.trim().toLowerCase();
+      document.querySelectorAll('.card').forEach(card => {
+        card.classList.toggle('hidden-by-search', query && !card.dataset.searchText.includes(query));
+      });
+    }
+
+    function handleGlobalShortcuts(event) {
+      const target = event.target;
+      const isTyping = target && ['INPUT', 'TEXTAREA'].includes(target.tagName);
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault();
+        document.getElementById('board-search').focus();
+      } else if (event.key === 'Escape') {
+        closeMarkdownModal();
+        closeItemDetail();
+      } else if (event.key === 'ArrowRight' && !isTyping) {
+        document.getElementById('board').scrollBy({ left: 320, behavior: 'smooth' });
+      } else if (event.key === 'ArrowLeft' && !isTyping) {
+        document.getElementById('board').scrollBy({ left: -320, behavior: 'smooth' });
+      }
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escJs(str) {
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    // ===== Fetch inicial =====
+    async function fetchBoard() {
+      try {
+        const res = await fetch('/api/board');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        renderBoard(data);
+        document.getElementById('loading').style.display = 'none';
+      } catch (e) {
+        console.error('Erro ao buscar board:', e);
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+
+    // ===== SSE =====
+    function connectSSE() {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource('/api/events');
+
+      eventSource.onopen = () => {
+        setStatus(true);
+        hideBanner();
+        if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+      };
+
+      eventSource.onmessage = (e) => {
+        cardSummaryCache.clear();
+        resetLiveTimer();
+        try {
+          const data = JSON.parse(e.data);
+          renderBoard(data);
+        } catch (err) {
+          console.warn('SSE parse error:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        setStatus(false);
+        showBanner();
+        eventSource.close();
+        eventSource = null;
+        scheduleReconnect();
+      };
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setInterval(() => {
+        connectSSE();
+      }, 5000);
+    }
+
+    function setStatus(online) {
+      const dot   = document.getElementById('conn-dot');
+      const label = document.getElementById('conn-label');
+      if (online) {
+        dot.className = 'dot';
+        label.textContent = 'ao vivo';
+      } else {
+        dot.className = 'dot offline';
+        label.textContent = 'desconectado';
+      }
+    }
+
+    function showBanner() {
+      document.getElementById('reconnect-banner').style.display = 'block';
+    }
+
+    function hideBanner() {
+      document.getElementById('reconnect-banner').style.display = 'none';
+    }
+
+    // ===== Init =====
+    document.getElementById('board-search').addEventListener('input', applySearch);
+    document.addEventListener('keydown', handleGlobalShortcuts);
+    initLiveTimer();
+    fetchBoard().then(() => connectSSE());
+  </script>
+</body>
+</html>

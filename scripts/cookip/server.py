@@ -38,12 +38,22 @@ except ImportError:
 DEFAULT_PORT = 8337
 DEFAULT_HOST = "127.0.0.1"
 
-# Localiza raiz do projeto (3 níveis acima de scripts/cookip/server.py)
 _THIS_FILE = Path(__file__).resolve()
-PROJECT_ROOT = _THIS_FILE.parent.parent.parent
 
-DEFAULT_BOARD_PATH = PROJECT_ROOT / ".agents" / "kanban" / "board.yaml"
-DEFAULT_HTML_PATH = PROJECT_ROOT / "src" / "cookip" / "board.html"
+# Global install: ~/.kanban-cortex-harness-agents/cookip/server.py  → board.html is a sibling
+# Legacy install: <project>/scripts/cookip/server.py → board.html at <project>/src/cookip/
+_SIBLING_HTML = _THIS_FILE.parent / "board.html"
+if _SIBLING_HTML.exists():
+    # Running from ~/.kanban-cortex-harness-agents/cookip/ (global) or any flat layout
+    DEFAULT_HTML_PATH = _SIBLING_HTML
+    PROJECT_ROOT = Path.cwd()          # project is wherever we're invoked from
+else:
+    # Legacy layout: 3 levels up from scripts/cookip/server.py
+    PROJECT_ROOT = _THIS_FILE.parent.parent.parent
+    DEFAULT_HTML_PATH = PROJECT_ROOT / "src" / "cookip" / "board.html"
+
+# Board path is always relative to the current project (CWD)
+DEFAULT_BOARD_PATH = Path(".agents") / "kanban" / "board.yaml"
 
 # ===== Estado compartilhado (SSE subscribers) =====
 

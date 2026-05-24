@@ -3,6 +3,7 @@
 # Claude registra /{nome} a partir de .claude/skills/{nome}/SKILL.md
 
 CLAUDE_SKILL_MAP=(
+  "05-bootstrap:a-bootstrap"
   "00-steering:a-steering"
   "10-discovery:a-discover"
   "15-po:a-po"
