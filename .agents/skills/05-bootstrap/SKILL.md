@@ -116,14 +116,27 @@ Este projeto usa o **Kanban Cortex Harness**.
 
 - Framework: `~/.kanban-cortex-harness-agents/`
 - Comandos: `/a-discover`, `/a-po`, `/a-spec`, `/a-build`, `/a-review`, `/a-test`, `/a-ship`
-- Board: `python3 ~/.kanban-cortex-harness-agents/cookip/server.py`
+- Board: `python3 ~/.kanban-cortex-harness-agents/cockpit/server.py`
 
 ## Bootstrap
 
 Execute `/a-bootstrap` uma vez por máquina/projeto para inicializar `.agents/`.
 ```
 
-### 8. Output final
+### 8. Iniciar Cockpit (Kanban Board UI)
+
+Iniciar o servidor Cockpit em background para visualização em tempo real:
+
+```bash
+python3 ~/.kanban-cortex-harness-agents/cockpit/check.py
+```
+
+O `check.py` é idempotente — se o servidor já estiver rodando, não faz nada.
+Falhas são silenciosas (o board é opcional, não bloqueia o trabalho).
+
+Confirmar ao usuário: "Cockpit disponível em http://127.0.0.1:8337"
+
+### 9. Output final
 
 ```
 ✅ Projeto inicializado!
@@ -135,10 +148,9 @@ Execute `/a-bootstrap` uma vez por máquina/projeto para inicializar `.agents/`.
   specs/             ← Specs aprovadas
   docs/              ← Documentação Diataxis
 
-Próximos passos:
-  /a-steering   → Configure produto, tech, convenções
-  /a-discover "ideia"   ou   /a-po "prompt"
+🖥️  Cockpit (Kanban Board): http://127.0.0.1:8337
 
-Board Kanban:
-  python3 ~/.kanban-cortex-harness-agents/cookip/server.py
+Próximos passos:
+  /a-steering        → Configure produto, tech, convenções
+  /a-discover "ideia"   ou   /a-po "prompt"
 ```

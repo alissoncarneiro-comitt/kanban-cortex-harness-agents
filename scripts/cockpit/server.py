@@ -1,16 +1,16 @@
 """
-cookip server — Kanban Board Online HTTP server (FEAT-008)
+cockpit server — Kanban Board Online HTTP server (FEAT-008)
 
 Endpoints:
-  GET /              → serve src/cookip/board.html
+  GET /              → serve src/cockpit/board.html
   GET /api/board     → retorna board.yaml como JSON
   GET /api/events    → SSE stream com updates do board
 
-Porta padrão: 8337 (configurável via COOKIP_PORT env var)
+Porta padrão: 8337 (configurável via COCKPIT_PORT env var)
 Escuta apenas em 127.0.0.1 (localhost).
 
 Usa PyYAML quando disponível; caso contrário usa parser YAML mínimo local.
-Feature flag: COOKIP_ENABLED — se não definida, servidor roda normalmente.
+Feature flag: COCKPIT_ENABLED — se não definida, servidor roda normalmente.
 """
 
 import json
@@ -25,7 +25,7 @@ from urllib.parse import unquote
 
 # Tenta importar PyYAML. A flag de teste força o parser stdlib.
 try:
-    if os.environ.get("COOKIP_SIMULATE_NO_PYYAML") == "1":
+    if os.environ.get("COCKPIT_SIMULATE_NO_PYYAML") == "1":
         raise ImportError("simulated PyYAML absence")
     import yaml
     YAML_AVAILABLE = True
@@ -40,17 +40,17 @@ DEFAULT_HOST = "127.0.0.1"
 
 _THIS_FILE = Path(__file__).resolve()
 
-# Global install: ~/.kanban-cortex-harness-agents/cookip/server.py  → board.html is a sibling
-# Legacy install: <project>/scripts/cookip/server.py → board.html at <project>/src/cookip/
+# Global install: ~/.kanban-cortex-harness-agents/cockpit/server.py  → board.html is a sibling
+# Legacy install: <project>/scripts/cockpit/server.py → board.html at <project>/src/cockpit/
 _SIBLING_HTML = _THIS_FILE.parent / "board.html"
 if _SIBLING_HTML.exists():
-    # Running from ~/.kanban-cortex-harness-agents/cookip/ (global) or any flat layout
+    # Running from ~/.kanban-cortex-harness-agents/cockpit/ (global) or any flat layout
     DEFAULT_HTML_PATH = _SIBLING_HTML
     PROJECT_ROOT = Path.cwd()          # project is wherever we're invoked from
 else:
-    # Legacy layout: 3 levels up from scripts/cookip/server.py
+    # Legacy layout: 3 levels up from scripts/cockpit/server.py
     PROJECT_ROOT = _THIS_FILE.parent.parent.parent
-    DEFAULT_HTML_PATH = PROJECT_ROOT / "src" / "cookip" / "board.html"
+    DEFAULT_HTML_PATH = PROJECT_ROOT / "src" / "cockpit" / "board.html"
 
 # Board path is always relative to the current project (CWD)
 DEFAULT_BOARD_PATH = Path(".agents") / "kanban" / "board.yaml"
@@ -271,7 +271,7 @@ ARTIFACT_FILES = {
 
 
 def _operations_ui_enabled() -> bool:
-    return os.environ.get("COOKIP_OPERATIONS_UI", "true").strip().lower() not in (
+    return os.environ.get("COCKPIT_OPERATIONS_UI", "true").strip().lower() not in (
         "0", "false", "no", "off",
     )
 
@@ -662,8 +662,8 @@ def build_item_detail(board_path: str | Path, item_id: str) -> tuple[dict | None
 
 # ===== Handler HTTP =====
 
-class CookipHandler(BaseHTTPRequestHandler):
-    """HTTP request handler para o cookip server."""
+class CockpitHandler(BaseHTTPRequestHandler):
+    """HTTP request handler para o cockpit server."""
 
     protocol_version = "HTTP/1.1"
 
@@ -724,7 +724,7 @@ class CookipHandler(BaseHTTPRequestHandler):
             content = Path(html_file).read_bytes()
         except OSError:
             # Fallback mínimo se board.html não existir
-            content = b"<html><body><h1>cookip kanban</h1></body></html>"
+            content = b"<html><body><h1>cockpit kanban</h1></body></html>"
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
@@ -883,7 +883,7 @@ class BoardWatcher(threading.Thread):
     """
 
     def __init__(self, board_path: Path, poll_interval: float = 0.8):
-        super().__init__(daemon=True, name="cookip-watcher")
+        super().__init__(daemon=True, name="cockpit-watcher")
         self.board_path = Path(board_path)
         self.poll_interval = poll_interval
         self._last_mtime: float | None = None
@@ -918,7 +918,7 @@ class BoardWatcher(threading.Thread):
             data, error = read_board(self.board_path)
 
             if error:
-                print(f"[cookip-watcher] Erro ao ler board.yaml: {error}. Usando cache.", file=sys.stderr)
+                print(f"[cockpit-watcher] Erro ao ler board.yaml: {error}. Usando cache.", file=sys.stderr)
                 # Usa cache da última versão válida
                 with _board_cache_lock:
                     data = _board_cache
@@ -951,7 +951,7 @@ def make_server(
     html_path: str | Path = DEFAULT_HTML_PATH,
 ) -> ThreadingHTTPServer:
     """
-    Cria e retorna um HTTPServer configurado para o cookip.
+    Cria e retorna um HTTPServer configurado para o cockpit.
     Não inicia o watcher (caller deve iniciar se quiser SSE).
     """
     board_path = Path(board_path)
@@ -959,8 +959,8 @@ def make_server(
 
     # Cria classe handler personalizada com caminhos injetados
     handler_class = type(
-        "BoundCookipHandler",
-        (CookipHandler,),
+        "BoundCockpitHandler",
+        (CockpitHandler,),
         {
             "board_path": board_path,
             "html_path": html_path,
@@ -979,20 +979,20 @@ def make_server(
 
 def main():
     """Ponto de entrada do servidor como daemon."""
-    # Feature flag: COOKIP_ENABLED (default: roda normalmente se não definida)
-    enabled_env = os.environ.get("COOKIP_ENABLED", "").strip().lower()
+    # Feature flag: COCKPIT_ENABLED (default: roda normalmente se não definida)
+    enabled_env = os.environ.get("COCKPIT_ENABLED", "").strip().lower()
     if enabled_env in ("false", "0", "no"):
-        print("[cookip] COOKIP_ENABLED=false — servidor não iniciado.", file=sys.stderr)
+        print("[cockpit] COCKPIT_ENABLED=false — servidor não iniciado.", file=sys.stderr)
         sys.exit(0)
 
     if not YAML_AVAILABLE:
         print(
-            "[cookip] AVISO: PyYAML não disponível.\n"
+            "[cockpit] AVISO: PyYAML não disponível.\n"
             "         Usando parser YAML mínimo embutido.",
             file=sys.stderr,
         )
 
-    port = int(os.environ.get("COOKIP_PORT", DEFAULT_PORT))
+    port = int(os.environ.get("COCKPIT_PORT", DEFAULT_PORT))
     host = DEFAULT_HOST
     board_path = DEFAULT_BOARD_PATH
     html_path = DEFAULT_HTML_PATH
@@ -1003,13 +1003,13 @@ def main():
     watcher = BoardWatcher(board_path)
     watcher.start()
 
-    print(f"[cookip] Servidor iniciado em http://{host}:{port}", file=sys.stderr)
-    print(f"[cookip] Board: {board_path}", file=sys.stderr)
+    print(f"[cockpit] Servidor iniciado em http://{host}:{port}", file=sys.stderr)
+    print(f"[cockpit] Board: {board_path}", file=sys.stderr)
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n[cookip] Encerrando...", file=sys.stderr)
+        print("\n[cockpit] Encerrando...", file=sys.stderr)
         server.shutdown()
 
 

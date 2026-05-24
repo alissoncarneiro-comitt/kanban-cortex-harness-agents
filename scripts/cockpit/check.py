@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check.py — probe idempotente e auto-start do cookip server.
+check.py — probe idempotente e auto-start do cockpit server.
 
 FEAT-008 TASK-004.
 """
@@ -18,12 +18,22 @@ DEFAULT_HOST = "127.0.0.1"
 PROBE_TIMEOUT_SECONDS = 1
 STARTUP_TIMEOUT_SECONDS = 3
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-SERVER_PY = PROJECT_ROOT / "scripts" / "cookip" / "server.py"
+_THIS_FILE = Path(__file__).resolve()
+
+# Global install: ~/.kanban-cortex-harness-agents/cockpit/check.py
+# server.py is a sibling in the same directory
+_SIBLING_SERVER = _THIS_FILE.parent / "server.py"
+
+# Legacy install: <project>/scripts/cockpit/check.py
+# server.py is 3 levels up: scripts/cockpit → scripts → project → scripts/cockpit
+_LEGACY_SERVER = _THIS_FILE.parent.parent.parent / "scripts" / "cockpit" / "server.py"
+
+SERVER_PY = _SIBLING_SERVER if _SIBLING_SERVER.exists() else _LEGACY_SERVER
+PROJECT_ROOT = Path.cwd()  # board.yaml is always relative to where the command is run
 
 
 def _pyyaml_available() -> bool:
-    if os.environ.get("COOKIP_SIMULATE_NO_PYYAML") == "1":
+    if os.environ.get("COCKPIT_SIMULATE_NO_PYYAML") == "1":
         return False
     try:
         import yaml  # noqa: F401
@@ -33,7 +43,7 @@ def _pyyaml_available() -> bool:
 
 
 def _port() -> int:
-    raw = os.environ.get("COOKIP_PORT", str(DEFAULT_PORT))
+    raw = os.environ.get("COCKPIT_PORT", str(DEFAULT_PORT))
     try:
         return int(raw)
     except ValueError:
@@ -54,8 +64,8 @@ def probe(port: int, host: str = DEFAULT_HOST, timeout: float = PROBE_TIMEOUT_SE
 
 def start_server(port: int) -> None:
     env = os.environ.copy()
-    env["COOKIP_PORT"] = str(port)
-    env.setdefault("COOKIP_ENABLED", "true")
+    env["COCKPIT_PORT"] = str(port)
+    env.setdefault("COCKPIT_ENABLED", "true")
     stdout = subprocess.DEVNULL
     stderr = subprocess.DEVNULL
     subprocess.Popen(

@@ -86,7 +86,7 @@ Skills: `.agents/skills/00-steering` … `15-po` … `80-governance`
 
 ## Board Online
 
-O cookip é iniciado de forma idempotente no começo dos skills por `scripts/cookip/check.py`.
+O cockpit é iniciado de forma idempotente no começo dos skills por `scripts/cockpit/check.py`.
 Painel local padrão: `http://127.0.0.1:8337`.
 
 ## Learned User Preferences

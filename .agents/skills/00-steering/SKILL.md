@@ -15,6 +15,16 @@ triggers: ["user", "model"]
 
 Este skill **NÃO escreve código**. Decide **o que** construir, **por quê**, e **quando** avançar colunas do Kanban.
 
+## Cockpit
+
+Antes de qualquer ação, inicie o Cockpit silenciosamente se não estiver rodando:
+
+```bash
+python3 ~/.kanban-cortex-harness-agents/cockpit/check.py
+```
+
+→ http://127.0.0.1:8337
+
 ## Contexto de Entrada
 
 > **ISOLAMENTO OBRIGATÓRIO**: Esta fase deve rodar em uma sessão Nova do agente.
@@ -156,7 +166,7 @@ python scripts/audit_writer.py human_approval \
 ### Ao iniciar este skill (phase_start)
 
 ```bash
-python3 scripts/cookip/check.py 2>/dev/null || python scripts/cookip/check.py 2>/dev/null || true
+python3 scripts/cockpit/check.py 2>/dev/null || python scripts/cockpit/check.py 2>/dev/null || true
 
 python scripts/audit_writer.py phase_start \
   --item {ITEM_ID} \

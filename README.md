@@ -87,7 +87,7 @@ Cria `.agents/kanban/`, `.agents/steering/`, `.agents/memory/` — o projeto fic
 │   └── 80-governance/  ← /a-governance
 ├── commands/           ← /a-flow, /a-plan, /a-reflect, /a-replenish
 ├── cerimonias/         ← daily-flow, replenishment, service-delivery-review
-├── cookip/             ← Kanban Board UI (server.py + board.html)
+├── cockpit/             ← Kanban Board UI (server.py + board.html)
 ├── config/             ��� pipeline.yaml
 ├─�� templates/          ← steering templates
 └── scripts/            ← orchestrator, board-validate, metrics, etc.
@@ -136,11 +136,11 @@ meu-projeto/
 
 ---
 
-## Board Kanban (Cookip)
+## Board Kanban (Cockpit)
 
 ```bash
 cd meu-projeto
-python3 ~/.kanban-cortex-harness-agents/cookip/server.py
+python3 ~/.kanban-cortex-harness-agents/cockpit/server.py
 # → http://127.0.0.1:8337
 ```
 

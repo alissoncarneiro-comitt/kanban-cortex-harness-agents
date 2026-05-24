@@ -68,7 +68,7 @@ deploy_agent_home() {
     "$AGENT_HOME/config" \
     "$AGENT_HOME/templates" \
     "$AGENT_HOME/scripts" \
-    "$AGENT_HOME/cookip"
+    "$AGENT_HOME/cockpit"
 
   _rsync "$HARNESS_DIR/.agents/skills/"           "$AGENT_HOME/skills/"
   _rsync "$HARNESS_DIR/.agents/commands/"         "$AGENT_HOME/commands/"
@@ -78,11 +78,12 @@ deploy_agent_home() {
   _rsync "$HARNESS_DIR/templates/"                "$AGENT_HOME/templates/"
   _rsync "$HARNESS_DIR/scripts/"                  "$AGENT_HOME/scripts/"
 
-  # cookip: server + board.html together in ~/.kanban-cortex-harness-agents/cookip/
-  cp -f "$HARNESS_DIR/scripts/cookip/server.py"   "$AGENT_HOME/cookip/server.py"
-  cp -f "$HARNESS_DIR/scripts/cookip/check.py"    "$AGENT_HOME/cookip/check.py"
-  cp -f "$HARNESS_DIR/scripts/cookip/__init__.py" "$AGENT_HOME/cookip/__init__.py"
-  cp -f "$HARNESS_DIR/scripts/cookip/board.html"  "$AGENT_HOME/cookip/board.html"
+  # cockpit: Python backend (scripts/cockpit/) + HTML frontend (src/cockpit/)
+  # deployed flat into ~/.kanban-cortex-harness-agents/cockpit/
+  cp -f "$HARNESS_DIR/scripts/cockpit/server.py"   "$AGENT_HOME/cockpit/server.py"
+  cp -f "$HARNESS_DIR/scripts/cockpit/check.py"    "$AGENT_HOME/cockpit/check.py"
+  cp -f "$HARNESS_DIR/scripts/cockpit/__init__.py" "$AGENT_HOME/cockpit/__init__.py"
+  cp -f "$HARNESS_DIR/src/cockpit/board.html"      "$AGENT_HOME/cockpit/board.html"
 
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
@@ -295,7 +296,7 @@ echo "        Claude Code:  /a-bootstrap"
 echo "        Codex CLI:    \$a-bootstrap"
 echo ""
 echo "   ▶  View Kanban board (after /a-bootstrap in a project):"
-echo "        python3 ~/.kanban-cortex-harness-agents/cookip/server.py"
+echo "        python3 ~/.kanban-cortex-harness-agents/cockpit/server.py"
 echo ""
 echo "   ▶  Update harness later:"
 echo "        git -C $HARNESS_DIR pull && ./setup.sh --update"

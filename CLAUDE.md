@@ -78,7 +78,7 @@ Framework global (não fica no projeto):
 ├── skills/          # 05-bootstrap … 80-governance
 ├── commands/
 ├── cerimonias/
-├── cookip/          # Kanban board UI
+├── cockpit/          # Kanban board UI
 ├── config/
 └── templates/
 ```
@@ -89,7 +89,7 @@ Framework global (não fica no projeto):
 
 ```bash
 cd meu-projeto
-python3 ~/.kanban-cortex-harness-agents/cookip/server.py
+python3 ~/.kanban-cortex-harness-agents/cockpit/server.py
 # Abre em http://127.0.0.1:8337
 ```
 

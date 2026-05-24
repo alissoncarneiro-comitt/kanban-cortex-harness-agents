@@ -18,7 +18,7 @@ fi
 
 ITEM_DIR="$BASE/$ITEM"
 
-python3 scripts/cookip/check.py 2>/dev/null || python scripts/cookip/check.py 2>/dev/null || true
+python3 scripts/cockpit/check.py 2>/dev/null || python scripts/cockpit/check.py 2>/dev/null || true
 
 if [[ ! -d "$ITEM_DIR" ]]; then
   # Tenta backlog

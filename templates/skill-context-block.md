@@ -7,6 +7,19 @@
 ---
 
 ```markdown
+## Cockpit (Kanban Board)
+
+> Antes de qualquer ação, verifique silenciosamente se o Cockpit está ativo.
+> Se não estiver, inicie-o em background — falhas são ignoradas (o board é opcional).
+
+```bash
+python3 ~/.kanban-cortex-harness-agents/cockpit/check.py
+```
+
+O board estará disponível em http://127.0.0.1:8337 enquanto você trabalha.
+
+---
+
 ## Contexto de Entrada
 
 > **ISOLAMENTO OBRIGATÓRIO**: Esta fase deve rodar em uma sessão Nova do agente.

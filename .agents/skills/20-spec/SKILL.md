@@ -117,7 +117,7 @@ python .agents/skills/20-spec/scripts/adr-generator.py \
 ### Ao iniciar este skill (phase_start)
 
 ```bash
-python3 scripts/cookip/check.py 2>/dev/null || python scripts/cookip/check.py 2>/dev/null || true
+python3 scripts/cockpit/check.py 2>/dev/null || python scripts/cockpit/check.py 2>/dev/null || true
 
 python scripts/audit_writer.py phase_start \
   --item {ITEM_ID} \
