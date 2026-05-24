@@ -133,7 +133,7 @@ mkdir -p .github
 # apenas se .github/copilot-instructions.md não existir
 ```
 
-### 9. Iniciar Cockpit (Kanban Board UI)
+### 8. Iniciar Cockpit (Kanban Board UI)
 
 Iniciar o servidor Cockpit em background para visualização em tempo real:
 
@@ -146,7 +146,7 @@ Falhas são silenciosas (o board é opcional, não bloqueia o trabalho).
 
 Confirmar ao usuário: "Cockpit disponível em http://127.0.0.1:8337"
 
-### 9. Output final
+### 10. Output final
 
 ```
 ✅ Projeto inicializado!
