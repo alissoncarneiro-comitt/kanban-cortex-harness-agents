@@ -84,6 +84,7 @@ deploy_agent_home() {
   cp -f "$HARNESS_DIR/scripts/cockpit/check.py"    "$AGENT_HOME/cockpit/check.py"
   cp -f "$HARNESS_DIR/scripts/cockpit/__init__.py" "$AGENT_HOME/cockpit/__init__.py"
   cp -f "$HARNESS_DIR/src/cockpit/board.html"      "$AGENT_HOME/cockpit/board.html"
+  cp -f "$HARNESS_DIR/src/cockpit/markdown-renderer.js" "$AGENT_HOME/cockpit/markdown-renderer.js"
 
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
