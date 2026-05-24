@@ -1,0 +1,71 @@
+---
+# Agent Harness Engineering Kanban — Swarm Configuration
+version: "1.0.0"
+name: "Agent Harness Engineering Kanban"
+
+# Modelos por papel (ajustável para qualquer provider)
+models:
+  steering:      "claude-sonnet-4"      # Estratégia, decisões complexas
+  discovery:     "claude-sonnet-4"      # Pesquisa, análise
+  design:        "claude-sonnet-4"      # Arquitetura, design system
+  build:         "claude-sonnet-4"      # Implementação, TDD
+  review:        "claude-opus-4"        # Review profundo, edge cases
+  test:          "claude-sonnet-4"      # QA, segurança, performance
+  ship:          "claude-sonnet-4"      # CI/CD, deploy
+  governance:    "claude-sonnet-4"      # Kanban, métricas
+
+# Limites do Kanban
+kanban:
+  wip_limit_total: 10
+  wip_limit_per_agent: 3
+  classes_de_servico:
+    - name: "Standard"
+      color: "🟢"
+      weight: 1
+    - name: "Expedite"
+      color: "🟡"
+      weight: 2
+      max_concurrent: 2
+    - name: "Fixed Date"
+      color: "🔴"
+      weight: 1
+      auto_priority: true
+
+# Thresholds de fluxo
+thresholds:
+  alert_idle_hours: 4
+  blocked_idle_hours: 8
+  review_pending_hours: 2
+  test_failing_hours: 1
+
+# Políticas
+policies:
+  design_lock_after_approve: true
+  no_scope_creep_after_plan: true
+  tdd_required: true
+  coverage_min_percent: 60
+  cross_model_review: true
+  auto_document_on_ship: true
+
+# Squads — Namespace de Times (FEAT-006)
+# Seção opcional: ausência preserva modo solo (comportamento legado).
+# Para ativar multi-squad, descomente e configure os squads abaixo.
+squads:
+# Exemplos (descomente para ativar):
+#  - id: alpha
+#    name: Alpha Squad
+#    prefix: ALPHA        # derivado de id.upper() se omitido
+#    wip_limit: 5
+#    owner: squad-alpha@example.com
+#  - id: beta
+#    name: Beta Squad
+#    prefix: BETA
+#    wip_limit: 4
+#    owner: squad-beta@example.com
+
+# Integrações
+integrations:
+  gbrain: false           # true para memória persistente
+  mcp_servers: []         # lista de MCP servers
+  browser_qa: true        # Playwright headless
+  codex_second_opinion: true

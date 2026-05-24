@@ -1,0 +1,72 @@
+# Agent Harness Engineering Kanban — Configuration
+version: "1.0.0"
+name: "agent-harness-engineering-kanban"
+
+# Swarm Settings
+swarm:
+  max_workers: 10
+  wip_limit_total: 10
+  wip_limit_per_agent: 3
+  classes_of_service:
+    - name: standard
+      color: "🟢"
+      weight: 1
+    - name: expedite
+      color: "🟡"
+      weight: 2
+      bypass_queue: true
+    - name: fixed_date
+      color: "🔴"
+      weight: 1
+      deadline_required: true
+
+# Cerimônias
+ceremonies:
+  replenish:
+    trigger: ["backlog_empty", "wip_slot_available", "on_demand"]
+    algorithm: "wsjf"
+    max_items_per_session: 3
+  flow:
+    trigger: ["scheduled_daily", "item_idle_4h", "on_demand"]
+    threshold_alert_hours: 4
+    threshold_blocked_hours: 8
+  reflect:
+    trigger: ["5_items_done", "biweekly", "on_demand"]
+    metrics: ["lead_time", "cycle_time", "throughput", "wip_aging", "flow_efficiency"]
+
+# Safety
+safety:
+  careful: true      # Warn before rm -rf, DROP, force-push
+  freeze: true       # Lock edits to one directory
+  guard: true        # careful + freeze combined
+  checkpoint_mode: "continuous"  # Auto-commit WIP with [harness-context]
+
+# Review
+review:
+  cross_model: true       # Enable /codex second opinion
+  boundary_check: true    # Reviewer checks boundary violations (cc-sdd)
+  auto_fix: true          # Auto-fix obvious issues
+  max_rejections_before_debug: 2
+
+# QA
+qa:
+  browser: "playwright"
+  headless: true
+  security_scan: "owasp_stride"
+  performance: "lighthouse"
+  coverage_gate: 0.60
+  regression_tests: true
+
+# Ship
+ship:
+  test_bootstrap: true    # Auto-create test framework if missing
+  doc_update: true        # Auto-update docs via Diataxis
+  canary_duration_minutes: 15
+  pr_template: "structured"
+
+# Memory / Brain
+brain:
+  type: "local"           # Options: local, supabase, gbrain
+  persist_learnings: true
+  taste_memory: true      # For /design-shotgun style workflows
+  domain_skills: true     # Per-site browser notes

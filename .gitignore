@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+coverage*.json
+
+# Runtime state (generated on install)
+.agents/kanban/
+.claude/
+.codex/
+.cursor/
+kanban
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Test outputs
+test-results/
