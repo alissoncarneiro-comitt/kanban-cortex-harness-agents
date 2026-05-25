@@ -171,7 +171,7 @@ def _update_task_status(
         data["task_progress"] = {}
     progress_status = status
     if status == "in_progress":
-        progress_status = "running"
+        progress_status = "in_progress"
     data["task_progress"][task_id] = progress_status
     data["pipeline"]["last_updated"] = _now_iso()
     _write_yaml(path, data)
