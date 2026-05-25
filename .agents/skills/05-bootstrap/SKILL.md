@@ -55,7 +55,7 @@ tests/
   regression/
 ```
 
-Criar symlink `kanban → .agents/kanban` na raiz do projeto (se não existir).
+Não criar symlink `kanban` na raiz — o diretório vive exclusivamente em `.agents/kanban/`.
 
 ### 3. Copiar templates de steering
 
