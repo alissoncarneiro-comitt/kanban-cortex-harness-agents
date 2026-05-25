@@ -53,6 +53,17 @@
       z-index: 100;
     }
 
+    .header-left,
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .header-left { flex: 1 1 auto; }
+    .header-right { flex: 0 0 auto; justify-content: flex-end; flex-wrap: wrap; }
+
     header h1 {
       font-size: 18px;
       font-weight: 700;
@@ -143,6 +154,59 @@
     #board-search:focus {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
+    }
+
+    .project-context {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .project-context select,
+    .context-badge {
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    .project-context select {
+      min-width: 160px;
+      padding: 0 28px 0 10px;
+    }
+
+    .project-context select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      color: var(--text-muted);
+      background: rgba(148, 163, 184, 0.08);
+      white-space: nowrap;
+    }
+
+    .context-badge strong { color: var(--text); font-weight: 600; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .dot {
@@ -784,15 +848,26 @@
   <div id="loading"><div class="spinner"></div></div>
 
   <header>
-    <h1>
-      <span class="h1-main"><span>Kanban</span> Cortex Harness Agents</span>
-      <small>Gestão de Fluxo Baseada em Cadências Kanban</small>
-    </h1>
-    <input id="board-search" type="search" placeholder="Buscar item ou fase" autocomplete="off">
-    <div id="status-indicator">
-      <div class="dot" id="conn-dot"></div>
-      <span id="conn-label">conectando...</span>
-      <span id="live-timer" aria-live="polite" aria-atomic="true"></span>
+    <div class="header-left">
+      <h1>
+        <span class="h1-main"><span>Kanban</span> Cortex Harness Agents</span>
+        <small>Gestão de Fluxo Baseada em Cadências Kanban</small>
+      </h1>
+      <div class="project-context" id="project-context" aria-label="Seletor de projeto e origem">
+        <label class="sr-only" for="project-selector">Projeto</label>
+        <select id="project-selector" aria-label="Selecionar projeto"></select>
+        <label class="sr-only" for="source-selector">Origem</label>
+        <select id="source-selector" aria-label="Selecionar origem"></select>
+        <span class="context-badge" id="context-badge">Origem <strong>project</strong></span>
+      </div>
+    </div>
+    <div class="header-right">
+      <input id="board-search" type="search" placeholder="Buscar item ou fase" autocomplete="off">
+      <div id="status-indicator">
+        <div class="dot" id="conn-dot"></div>
+        <span id="conn-label">conectando...</span>
+        <span id="live-timer" aria-live="polite" aria-atomic="true"></span>
+      </div>
     </div>
   </header>
 
@@ -808,7 +883,10 @@
     let boardData = null;
     let eventSource = null;
     let reconnectTimer = null;
-    let cockpitConfig = { rich_markdown_enabled: true };
+    let cockpitConfig = { rich_markdown_enabled: true, project_hub_enabled: false };
+    let projectCatalog = [];
+    let activeContext = { project_id: '', source: '' };
+    const CONTEXT_STORAGE_KEY = 'cockpit.project-context';
 
     async function fetchConfig() {
       try {
@@ -819,6 +897,224 @@
       } catch (_) {
         /* fallback single-project */
       }
+    }
+
+    async function fetchProjects() {
+      if (!cockpitConfig.project_hub_enabled) {
+        projectCatalog = [];
+        syncProjectControls();
+        return [];
+      }
+      try {
+        const res = await fetch('/api/projects');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        projectCatalog = Array.isArray(data.projects) ? data.projects : [];
+      } catch (_) {
+        projectCatalog = [];
+      }
+      syncProjectControls();
+      return projectCatalog;
+    }
+
+    function readContextFromLocation() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        project_id: (params.get('project_id') || '').trim(),
+        source: (params.get('source') || '').trim(),
+      };
+    }
+
+    function readContextFromStorage() {
+      try {
+        const raw = window.localStorage.getItem(CONTEXT_STORAGE_KEY);
+        if (!raw) return { project_id: '', source: '' };
+        const parsed = JSON.parse(raw);
+        return {
+          project_id: String(parsed.project_id || '').trim(),
+          source: String(parsed.source || '').trim(),
+        };
+      } catch (_) {
+        return { project_id: '', source: '' };
+      }
+    }
+
+    function persistContext(context) {
+      try {
+        window.localStorage.setItem(CONTEXT_STORAGE_KEY, JSON.stringify({
+          project_id: context.project_id || '',
+          source: context.source || '',
+        }));
+      } catch (_) {}
+    }
+
+    function activeProjectEntry(projectId) {
+      return projectCatalog.find(project => String(project.project_id || '') === String(projectId || '')) || null;
+    }
+
+    function normalizedSourceForProject(project, requestedSource) {
+      const fallback = String(project && project.source_mode ? project.source_mode : 'project').toLowerCase();
+      const candidate = String(requestedSource || '').toLowerCase();
+      if (candidate === 'project' || candidate === 'hub') return candidate;
+      return fallback === 'hub' ? 'hub' : 'project';
+    }
+
+    function buildContextOptions() {
+      return projectCatalog.slice().sort((a, b) => {
+        const activeA = a.active ? 0 : 1;
+        const activeB = b.active ? 0 : 1;
+        if (activeA !== activeB) return activeA - activeB;
+        return String(a.name || a.project_id || '').localeCompare(String(b.name || b.project_id || ''));
+      });
+    }
+
+    function resolveInitialContext() {
+      if (!cockpitConfig.project_hub_enabled) {
+        return { project_id: '', source: '' };
+      }
+      const fromUrl = readContextFromLocation();
+      const fromStorage = readContextFromStorage();
+      const projects = buildContextOptions();
+      const urlProject = fromUrl.project_id && activeProjectEntry(fromUrl.project_id);
+      if (urlProject) {
+        return { project_id: urlProject.project_id, source: normalizedSourceForProject(urlProject, fromUrl.source) };
+      }
+      const storedProject = fromStorage.project_id && activeProjectEntry(fromStorage.project_id);
+      if (storedProject) {
+        return { project_id: storedProject.project_id, source: normalizedSourceForProject(storedProject, fromStorage.source) };
+      }
+      const preferred = projects.find(project => project.active) || projects[0];
+      if (preferred) {
+        return { project_id: preferred.project_id, source: normalizedSourceForProject(preferred, preferred.source_mode) };
+      }
+      return { project_id: '', source: '' };
+    }
+
+    function contextQueryParams(context) {
+      const params = new URLSearchParams();
+      if (context && context.project_id) params.set('project_id', context.project_id);
+      if (context && context.source) params.set('source', context.source);
+      const query = params.toString();
+      return query ? `?${query}` : '';
+    }
+
+    function buildBoardUrl(context) {
+      if (!cockpitConfig.project_hub_enabled || !context || !context.project_id) return '/api/board';
+      return `/api/board${contextQueryParams(context)}`;
+    }
+
+    function buildEventsUrl(context) {
+      if (!cockpitConfig.project_hub_enabled || !context || !context.project_id) return '/api/events';
+      return `/api/events${contextQueryParams(context)}`;
+    }
+
+    function buildItemUrl(itemId, context) {
+      if (!cockpitConfig.project_hub_enabled || !context || !context.project_id) {
+        return `/api/item/${encodeURIComponent(itemId)}`;
+      }
+      return `/api/item/${encodeURIComponent(itemId)}${contextQueryParams(context)}`;
+    }
+
+    function buildArtifactUrl(itemId, artifactId, context) {
+      if (!cockpitConfig.project_hub_enabled || !context || !context.project_id) {
+        return `/api/item/${encodeURIComponent(itemId)}/artifact/${encodeURIComponent(artifactId)}`;
+      }
+      return `/api/item/${encodeURIComponent(itemId)}/artifact/${encodeURIComponent(artifactId)}${contextQueryParams(context)}`;
+    }
+
+    function syncLocation(context) {
+      const url = new URL(window.location.href);
+      if (context.project_id) {
+        url.searchParams.set('project_id', context.project_id);
+        if (context.source) url.searchParams.set('source', context.source);
+        else url.searchParams.delete('source');
+      } else {
+        url.searchParams.delete('project_id');
+        url.searchParams.delete('source');
+      }
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    }
+
+    function syncProjectControls() {
+      const selector = document.getElementById('project-selector');
+      const sourceSelector = document.getElementById('source-selector');
+      const badge = document.getElementById('context-badge');
+      const panel = document.getElementById('project-context');
+      if (!selector || !sourceSelector || !badge) return;
+
+      const projects = buildContextOptions();
+      if (panel) {
+        panel.style.display = (!cockpitConfig.project_hub_enabled || !projects.length) ? 'none' : 'flex';
+      }
+      selector.innerHTML = '';
+
+      if (!projects.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Projeto local';
+        selector.appendChild(option);
+        selector.disabled = true;
+        sourceSelector.disabled = true;
+        sourceSelector.innerHTML = '';
+        ['project', 'hub'].forEach(value => {
+          const item = document.createElement('option');
+          item.value = value;
+          item.textContent = value;
+          sourceSelector.appendChild(item);
+        });
+        sourceSelector.value = activeContext.source || 'project';
+        badge.innerHTML = 'Origem <strong>project</strong>';
+        return;
+      }
+
+      projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.project_id;
+        option.textContent = project.active ? `${project.name || project.project_id} (ativo)` : (project.name || project.project_id);
+        selector.appendChild(option);
+      });
+
+      const selectedProject = activeProjectEntry(activeContext.project_id) || projects[0];
+      if (!activeContext.project_id && selectedProject) {
+        activeContext.project_id = selectedProject.project_id;
+      }
+      if (selectedProject) {
+        activeContext.source = normalizedSourceForProject(selectedProject, activeContext.source || selectedProject.source_mode);
+      }
+
+      selector.disabled = projects.length <= 1;
+      selector.value = selectedProject ? selectedProject.project_id : '';
+
+      sourceSelector.innerHTML = '';
+      ['project', 'hub'].forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        sourceSelector.appendChild(option);
+      });
+      sourceSelector.value = activeContext.source || (selectedProject ? normalizedSourceForProject(selectedProject, selectedProject.source_mode) : 'project');
+      sourceSelector.disabled = !selectedProject;
+      badge.innerHTML = `Origem <strong>${escHtml(sourceSelector.value || 'project')}</strong>`;
+      sourceSelector.title = selectedProject ? `Contexto ativo: ${selectedProject.name || selectedProject.project_id}` : 'Contexto local';
+    }
+
+    function setActiveContext(nextContext, options = {}) {
+      const context = {
+        project_id: String(nextContext.project_id || '').trim(),
+        source: String(nextContext.source || '').trim(),
+      };
+      const project = activeProjectEntry(context.project_id);
+      if (project) {
+        context.source = normalizedSourceForProject(project, context.source || project.source_mode);
+      }
+      activeContext = context;
+      if (options.persist !== false) persistContext(context);
+      if (options.syncLocation !== false) syncLocation(context);
+      syncProjectControls();
+    }
+
+    function loadCurrentContext() {
+      setActiveContext(resolveInitialContext(), { persist: false, syncLocation: false });
     }
 
     // ===== Timer ao vivo (TASK-002) =====
@@ -856,7 +1152,7 @@
     function fetchCardSummaries(itemIds) {
       const missing = itemIds.filter(id => !cardSummaryCache.has(id));
       missing.forEach(id => {
-        fetch(`/api/item/${encodeURIComponent(id)}`)
+        fetch(buildItemUrl(id, activeContext))
           .then(r => r.ok ? r.json() : null)
           .then(data => {
             if (!data) return;
@@ -1058,7 +1354,7 @@
       detail.className = 'open';
       detail.innerHTML = '<div class="detail-row">Carregando...</div>';
       try {
-        const res = await fetch(`/api/item/${encodeURIComponent(itemId)}`);
+        const res = await fetch(buildItemUrl(itemId, activeContext));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         renderItemDetail(data);
@@ -1129,7 +1425,7 @@
       modal.setAttribute('aria-hidden', 'false');
       modal.innerHTML = markdownShell('Carregando...', '<p>Carregando evidência...</p>');
       try {
-        const res = await fetch(`/api/item/${encodeURIComponent(itemId)}/artifact/${encodeURIComponent(artifactId)}`);
+        const res = await fetch(buildArtifactUrl(itemId, artifactId, activeContext));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const title = `${data.item_id || itemId} · ${(data.artifact && data.artifact.label) || artifactId}`;
@@ -1305,7 +1601,7 @@
     // ===== Fetch inicial =====
     async function fetchBoard() {
       try {
-        const res = await fetch('/api/board');
+        const res = await fetch(buildBoardUrl(activeContext));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         renderBoard(data);
@@ -1321,8 +1617,12 @@
       if (eventSource) {
         eventSource.close();
       }
+      if (reconnectTimer) {
+        clearInterval(reconnectTimer);
+        reconnectTimer = null;
+      }
 
-      eventSource = new EventSource('/api/events');
+      eventSource = new EventSource(buildEventsUrl(activeContext));
 
       eventSource.onopen = () => {
         setStatus(true);
@@ -1378,10 +1678,38 @@
     }
 
     // ===== Init =====
-    document.getElementById('board-search').addEventListener('input', applySearch);
-    document.addEventListener('keydown', handleGlobalShortcuts);
-    initLiveTimer();
-    fetchConfig().then(() => fetchBoard()).then(() => connectSSE());
+    if (!window.__COCKPIT_TEST_MODE) {
+      document.getElementById('board-search').addEventListener('input', applySearch);
+      document.getElementById('project-selector').addEventListener('change', (event) => {
+        const sourceSelectorEl = document.getElementById('source-selector');
+        const project = activeProjectEntry(event.target.value) || buildContextOptions()[0] || null;
+        if (!project) return;
+        setActiveContext({
+          project_id: project.project_id,
+          source: normalizedSourceForProject(project, sourceSelectorEl ? sourceSelectorEl.value : project.source_mode),
+        });
+        fetchBoard().then(() => connectSSE());
+      });
+      document.getElementById('source-selector').addEventListener('change', (event) => {
+        const project = activeProjectEntry(activeContext.project_id) || buildContextOptions()[0] || null;
+        if (!project) return;
+        setActiveContext({
+          project_id: project.project_id,
+          source: event.target.value,
+        });
+        fetchBoard().then(() => connectSSE());
+      });
+      document.addEventListener('keydown', handleGlobalShortcuts);
+      initLiveTimer();
+      (async () => {
+        await fetchConfig();
+        await fetchProjects();
+        loadCurrentContext();
+        syncProjectControls();
+        await fetchBoard();
+        connectSSE();
+      })();
+    }
   </script>
 </body>
 </html>
