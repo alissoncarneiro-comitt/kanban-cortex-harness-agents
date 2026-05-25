@@ -110,3 +110,26 @@ Painel local padrão: `http://127.0.0.1:8337`.
 - Codex CLI instala skills **flat** em `~/.codex/skills/a-*` (symlink de `.agents/skills/`); layout legado `harness/00-steering` não expõe `$a-*` no picker — `./setup.sh --codex` remove `harness/` e recria `a-*`.
 - Pipeline automático (`scripts/orchestrator/pipeline.py`, FEAT-007) hoje só invoca `claude -p`; em Cursor/Codex CLI as fases pós-`approve tasks` costumam ser manuais (`/a-*` ou `$a-*`) até adapters no FEAT-011.
 - Skills de fase (`/a-build`, `/a-review`, `/a-ship`, etc.) exigem sessão nova do agente e leitura só dos artefatos listados no skill — sem histórico de conversa.
+
+## Integrações Opcionais
+
+| Tool | Propósito | Instalar via |
+|------|-----------|--------------|
+| **Beads** (`bd`) | Issue tracker para agentes IA — tasks versionadas e rastreáveis | `setup.sh` ou `curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh \| bash` |
+| **RTK** (`rtk`) | Proxy de tokens — 60-90% de economia em operações shell | `setup.sh` ou `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh \| sh && rtk init -g` |
+
+Quando instalados, `setup.sh` detecta automaticamente e registra em `harness.yaml` → seção `integrations`.
+
+### Comandos essenciais — Beads
+
+```bash
+bd ready          # Lista tasks prontas para trabalhar
+bd create         # Cria uma nova issue/task
+bd close <id>     # Fecha task concluída
+bd dep add        # Adiciona dependência entre tasks
+```
+
+### RTK — como funciona
+
+`rtk init -g` instala um hook global no Claude Code (`~/.claude/`) que intercepta comandos transparentemente.
+Para verificar economia acumulada: `rtk gain`.

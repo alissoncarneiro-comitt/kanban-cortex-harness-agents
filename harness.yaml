@@ -6,7 +6,7 @@ name: "agent-harness-engineering-kanban"
 swarm:
   max_workers: 10
   wip_limit_total: 10
-  wip_limit_per_agent: 3
+  wip_limit_per_agent: 5
   classes_of_service:
     - name: standard
       color: "🟢"
@@ -63,6 +63,17 @@ ship:
   doc_update: true        # Auto-update docs via Diataxis
   canary_duration_minutes: 15
   pr_template: "structured"
+
+# Integrações opcionais — atualizadas automaticamente por setup.sh
+integrations:
+  beads:
+    enabled: false
+    description: "Issue tracker para agentes IA (bd)"
+    install_url: "https://github.com/gastownhall/beads"
+  rtk:
+    enabled: false
+    description: "Proxy de tokens — 60-90% de economia (rtk)"
+    install_url: "https://github.com/rtk-ai/rtk"
 
 # Memory / Brain
 brain:

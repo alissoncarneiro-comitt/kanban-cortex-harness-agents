@@ -93,6 +93,31 @@ python3 ~/.kanban-cortex-harness-agents/cockpit/server.py
 # Abre em http://127.0.0.1:8337
 ```
 
+## Integrações Opcionais
+
+| Tool | Propósito | Instalar via |
+|------|-----------|--------------|
+| **Beads** (`bd`) | Issue tracker para agentes IA — tasks versionadas e rastreáveis | `setup.sh` ou `curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh \| bash` |
+| **RTK** (`rtk`) | Proxy de tokens — 60-90% de economia em operações shell | `setup.sh` ou `curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh \| sh && rtk init -g` |
+
+Quando instalados, `setup.sh` detecta automaticamente e registra em `harness.yaml` → seção `integrations`.
+
+### Comandos essenciais — Beads
+
+```bash
+bd ready          # Lista tasks prontas para trabalhar
+bd create         # Cria uma nova issue/task
+bd close <id>     # Fecha task concluída
+bd dep add        # Adiciona dependência entre tasks
+```
+
+### RTK — como funciona
+
+`rtk init -g` instala um hook global no Claude Code (`~/.claude/`) que intercepta comandos transparentemente.
+Para verificar economia acumulada: `rtk gain`.
+
+---
+
 ## Referências
 
 - `AGENTS.md` — Constituição do swarm
