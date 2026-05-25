@@ -88,6 +88,9 @@ deploy_agent_home() {
   cp -f "$HARNESS_DIR/src/cockpit/board.html"      "$AGENT_HOME/cockpit/board.html"
   cp -f "$HARNESS_DIR/src/cockpit/markdown-renderer.js" "$AGENT_HOME/cockpit/markdown-renderer.js"
 
+  # Deploy harness config — needed by _write_harness_integration at runtime
+  cp "$HARNESS_DIR/harness.yaml" "$AGENT_HOME/harness.yaml"
+
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
 
@@ -237,6 +240,7 @@ PYEOF
 }
 
 _check_optional_tools() {
+  local _ans
   echo ""
   echo "🔌 Integrações opcionais"
 

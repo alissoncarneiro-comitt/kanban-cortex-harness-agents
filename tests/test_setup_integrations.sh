@@ -16,6 +16,7 @@ _ok() { echo "  ✅ $1"; PASS=$((PASS+1)); }
 _fail() { echo "  ❌ $1"; FAIL=$((FAIL+1)); }
 
 # helper: fake HOME with minimal harness structure
+# Does NOT pre-copy harness.yaml — setup.sh must deploy it via deploy_agent_home()
 _make_fake_home() {
   local h="$TMPDIR_ROOT/$1"
   mkdir -p \
@@ -27,7 +28,6 @@ _make_fake_home() {
     "$h/.kanban-cortex-harness-agents/templates" \
     "$h/.kanban-cortex-harness-agents/scripts" \
     "$h/.kanban-cortex-harness-agents/cockpit"
-  cp "$HARNESS_DIR/harness.yaml" "$h/.kanban-cortex-harness-agents/harness.yaml"
   printf 'version: "1.0"\nprojects: []\n' > "$h/.kanban-cortex-harness-agents/config/project-registry.yaml"
   echo "$h"
 }
@@ -85,29 +85,36 @@ else
   _ok "--update did not ask about integrations"
 fi
 
-# ── T07: response N does not modify harness.yaml ─────────────────────────────
+# ── T12: setup.sh --update deploys harness.yaml to $AGENT_HOME ───────────────
+
+echo ""
+echo "== T12: deploy_agent_home deploys harness.yaml =="
+
+H_DEPLOY=$(_make_fake_home "deploy-test")
+HOME="$H_DEPLOY" bash "$SETUP" --update > /dev/null 2>&1 || true
+
+if [ -f "$H_DEPLOY/.kanban-cortex-harness-agents/harness.yaml" ]; then
+  _ok "setup.sh --update deploys harness.yaml to \$AGENT_HOME"
+else
+  _fail "harness.yaml not deployed to \$AGENT_HOME after setup.sh --update"
+fi
+
+# ── T07: response N → _write_harness_integration sets enabled=false ──────────
 
 echo ""
 echo "== TASK-004: 'N' answer — no install =="
 
+# Use a home that setup.sh --update already seeded (harness.yaml present)
 H2=$(_make_fake_home "n-test")
+HOME="$H2" bash "$SETUP" --update > /dev/null 2>&1 || true
 harness_yaml="$H2/.kanban-cortex-harness-agents/harness.yaml"
-before_mtime=$(stat -c %Y "$harness_yaml" 2>/dev/null || stat -f %m "$harness_yaml" 2>/dev/null)
 
-# Pipe 'N\nN\n' to stdin — one N for Beads, one N for RTK
-# Also stub curl to ensure it's never called
-n_log="$TMPDIR_ROOT/n-test.log"
-
-# We only test the _write_harness_integration function directly with 'false'
-# (integration-level test of the setup interactive flow requires mocking curl+read)
-# Here we test the function directly:
 (
   AGENT_HOME="$H2/.kanban-cortex-harness-agents"
-  # source the function from setup.sh
   eval "$(sed -n '/^_write_harness_integration()/,/^}/p' "$SETUP")"
   _write_harness_integration "beads" false
   _write_harness_integration "rtk" false
-) > "$n_log" 2>&1 || true
+) > /dev/null 2>&1 || true
 
 if python3 -c "
 import sys, pathlib
@@ -127,15 +134,15 @@ else
   _fail "harness.yaml not set to enabled=false after 'N'"
 fi
 
-# ── T08: response Y + mock curl → harness.yaml enabled=true ──────────────────
+# ── T08: response Y → _write_harness_integration sets enabled=true ───────────
 
 echo ""
-echo "== TASK-004: 'Y' + mock curl → enabled=true =="
+echo "== TASK-004: 'Y' + mock install → enabled=true =="
 
 H3=$(_make_fake_home "y-test")
+HOME="$H3" bash "$SETUP" --update > /dev/null 2>&1 || true
 harness_yaml3="$H3/.kanban-cortex-harness-agents/harness.yaml"
 
-# Call _write_harness_integration directly with 'true' (simulating successful install)
 (
   AGENT_HOME="$H3/.kanban-cortex-harness-agents"
   eval "$(sed -n '/^_write_harness_integration()/,/^}/p' "$SETUP")"
