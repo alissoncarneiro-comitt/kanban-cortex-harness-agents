@@ -89,6 +89,12 @@ deploy_agent_home() {
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
 
+  # Initialize project registry if not exists (never overwrite — projects accumulate here)
+  REGISTRY_PATH="$AGENT_HOME/config/project-registry.yaml"
+  if [ ! -f "$REGISTRY_PATH" ]; then
+    printf 'version: "1.0"\nprojects: []\n' > "$REGISTRY_PATH"
+  fi
+
   echo "   ✅ $AGENT_HOME ready"
 }
 

@@ -23,6 +23,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
+# When deployed to ~/.kanban-cortex-harness-agents/cockpit/server.py the parent
+# directory (agent home) must be on sys.path so that `scripts.cockpit.*` imports work.
+_AGENT_HOME_CANDIDATE = Path(__file__).resolve().parent.parent
+if str(_AGENT_HOME_CANDIDATE) not in sys.path:
+    sys.path.insert(0, str(_AGENT_HOME_CANDIDATE))
+
 from scripts.cockpit.project_registry import (
     ProjectEntry,
     ProjectRegistry,
@@ -292,9 +298,17 @@ def _rich_markdown_enabled() -> bool:
 
 
 def _project_hub_enabled() -> bool:
-    return os.environ.get("COCKPIT_PROJECT_HUB_ENABLED", "false").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
+    env_val = os.environ.get("COCKPIT_PROJECT_HUB_ENABLED", "").strip().lower()
+    if env_val in ("0", "false", "no", "off"):
+        return False
+    if env_val in ("1", "true", "yes", "on"):
+        return True
+    # Auto-enable when at least one project is registered in the hub
+    try:
+        registry = load_project_registry(PROJECT_REGISTRY_PATH)
+        return len(registry.projects) > 0
+    except Exception:
+        return False
 
 
 def build_cockpit_config() -> dict:
