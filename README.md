@@ -35,8 +35,11 @@ Instala o framework em `~/.kanban-cortex-harness-agents/` e cria symlinks nos ag
 ### Atualizar
 
 ```bash
-git pull && ./setup.sh --update   # re-sync ~/.kanban-cortex-harness-agents/
+cd kanban-cortex-harness-agents
+git pull origin main && ./setup.sh --update   # re-sync ~/.kanban-cortex-harness-agents/
 ```
+
+Regra prática: sempre faça `git pull` de dentro de `kanban-cortex-harness-agents/`, nunca da raiz do workspace.
 
 ---
 

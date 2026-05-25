@@ -32,6 +32,11 @@ Thumbs.db
 # Test outputs
 test-results/
 
+# Workspace-local docs/config that should stay out of Git
+.agents/steering/
+.github/
+docs/how-to/beads-rtk-setup.md
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db

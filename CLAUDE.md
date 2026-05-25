@@ -22,6 +22,15 @@ cd kanban-cortex-harness-agents
 ./setup.sh --all    # Claude + Codex + Cursor + Windsurf + Devin + Antigravity
 ```
 
+Regra operacional: sempre execute `git pull` dentro de `kanban-cortex-harness-agents/`.
+Exemplo:
+
+```bash
+cd kanban-cortex-harness-agents
+git pull origin main
+./setup.sh --update
+```
+
 ## Bootstrap (uma vez por projeto)
 
 ```bash
