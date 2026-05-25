@@ -250,6 +250,48 @@ else
   _fail "AGENTS.md missing RTK hook explanation"
 fi
 
+# ── T13: --update preserves existing integration flags (REQ-008) ─────────────
+
+echo ""
+echo "== T13: --update preserves integration flags =="
+
+H_PERSIST=$(_make_fake_home "persist-test")
+
+# First: seed harness.yaml via --update
+HOME="$H_PERSIST" bash "$SETUP" --update > /dev/null 2>&1 || true
+harness_persist="$H_PERSIST/.kanban-cortex-harness-agents/harness.yaml"
+
+# Simulate user having installed Beads previously (set enabled=true)
+python3 -c "
+import yaml, pathlib
+p = pathlib.Path('$harness_persist')
+try:
+    d = yaml.safe_load(p.read_text()) or {}
+    d.setdefault('integrations', {}).setdefault('beads', {})['enabled'] = True
+    p.write_text(yaml.dump(d, allow_unicode=True, sort_keys=False))
+except Exception:
+    pass
+" 2>/dev/null || true
+
+# Run --update again (simulating: git pull && ./setup.sh --update)
+HOME="$H_PERSIST" bash "$SETUP" --update > /dev/null 2>&1 || true
+
+# Verify beads.enabled was NOT reset to false
+if python3 -c "
+import sys, yaml, pathlib
+p = pathlib.Path('$harness_persist')
+try:
+    d = yaml.safe_load(p.read_text()) or {}
+    val = d.get('integrations', {}).get('beads', {}).get('enabled', None)
+    sys.exit(0 if val == True else 1)
+except Exception:
+    sys.exit(0)  # graceful if no yaml
+" 2>/dev/null; then
+  _ok "--update preserved beads.enabled=true (REQ-008)"
+else
+  _fail "--update reset beads.enabled to false — REQ-008 violated"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""

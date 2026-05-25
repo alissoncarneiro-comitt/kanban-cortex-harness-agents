@@ -88,8 +88,10 @@ deploy_agent_home() {
   cp -f "$HARNESS_DIR/src/cockpit/board.html"      "$AGENT_HOME/cockpit/board.html"
   cp -f "$HARNESS_DIR/src/cockpit/markdown-renderer.js" "$AGENT_HOME/cockpit/markdown-renderer.js"
 
-  # Deploy harness config — needed by _write_harness_integration at runtime
-  cp "$HARNESS_DIR/harness.yaml" "$AGENT_HOME/harness.yaml"
+  # Initialize harness.yaml only on first deploy — never overwrite (integrations accumulate)
+  if [ ! -f "$AGENT_HOME/harness.yaml" ]; then
+    cp "$HARNESS_DIR/harness.yaml" "$AGENT_HOME/harness.yaml"
+  fi
 
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
