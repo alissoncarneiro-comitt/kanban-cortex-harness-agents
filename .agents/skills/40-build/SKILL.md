@@ -125,13 +125,35 @@ python3 scripts/validate-tasks.py .agents/kanban/in-progress/{ITEM_ID}/tasks.md
 ### Por task:
 
 1. **Read**: `tasks.md` — `_Boundary:_` e `_Depends:_`
-2. **Branch**: `feature/{ITEM}-TASK-NNN`
-3. **RED**: teste que falha
-4. **GREEN**: código mínimo
-5. **REFACTOR**: limpar, testes verdes
-6. **Commit**: formato `[FEATURE-XXX] tipo: desc` + `[harness-context]`
-7. **Implementation Notes**: aprendizados em `## Implementation Notes` no tasks.md
-8. **Handoff**: notificar reviewer independente
+2. **Beads claim** (FEAT-018): antes de qualquer edição, ler `bd_id` da task em `task.yaml` e clamar:
+
+   ```bash
+   # Lê bd_id de task.yaml (se existir e Beads habilitado):
+   BD_ID=$(python3 -c "
+   import yaml, sys
+   try:
+       d = yaml.safe_load(open('.agents/kanban/in-progress/{ITEM_ID}/task.yaml'))
+       print(d.get('beads', {}).get('tasks', {}).get('{TASK_ID}', {}).get('bd_id', ''))
+   except: pass
+   " 2>/dev/null || echo "")
+   [ -n "$BD_ID" ] && bd update "$BD_ID" --claim 2>/dev/null || true
+   ```
+
+3. **Branch**: `feature/{ITEM}-TASK-NNN`
+4. **RED**: teste que falha
+5. **GREEN**: código mínimo
+6. **REFACTOR**: limpar, testes verdes
+7. **Commit**: formato `[FEATURE-XXX] tipo: desc` + `[harness-context]`
+8. **Beads close** (FEAT-018): ao completar a task com testes verdes:
+
+   ```bash
+   [ -n "$BD_ID" ] && bd close "$BD_ID" 2>/dev/null || true
+   ```
+
+9. **Implementation Notes**: aprendizados em `## Implementation Notes` no tasks.md
+10. **Handoff**: notificar reviewer independente
+
+Se `bd_id` ausente em `task.yaml` ou `bd` não disponível, os passos 2 e 8 são no-op silencioso.
 
 ### Feature Flags
 

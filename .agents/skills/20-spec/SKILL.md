@@ -86,7 +86,27 @@ _Estimativa_: [horas]
 _Acceptance_: [critérios testáveis]
 ```
 
-### 4. ADRs (se necessário)
+### 4. Integração com Beads (FEAT-017)
+
+Após gerar e salvar `tasks.md`, sincronizar com Beads se disponível:
+
+```bash
+python scripts/beads-sync.py \
+  --item {ITEM_ID} \
+  --tasks .agents/kanban/in-progress/{ITEM_ID}/tasks.md \
+  --task-yaml .agents/kanban/in-progress/{ITEM_ID}/task.yaml \
+  --harness harness.yaml
+```
+
+O script verifica `integrations.beads.enabled` em `harness.yaml`. Se `true` e `bd` estiver disponível:
+- Cria uma issue no Beads por `TASK-NNN` encontrada em `tasks.md` (`bd q "..."`)
+- Salva o `bd_id` de cada task em `task.yaml` sob `beads.tasks.{TASK_ID}.bd_id`
+- Linka dependências via `bd dep add`
+
+Se Beads não estiver habilitado ou `bd` não estiver no PATH, o script sai silenciosamente (exit 0).
+`tasks.md` é gerado normalmente — Beads é complementar, não substituto.
+
+### 5. ADRs (se necessário)
 
 ```bash
 python .agents/skills/20-spec/scripts/adr-generator.py \

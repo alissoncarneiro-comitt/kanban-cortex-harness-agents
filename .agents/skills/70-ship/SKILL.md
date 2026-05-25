@@ -42,6 +42,17 @@ Se `qa-report.md` não existir ou `task.yaml` não tiver `ship: { approved: true
 
 ## Workflow
 
+### 0. Beads claim — fase ship (FEAT-018)
+
+Criar issue de ship no Beads e clamar antes de iniciar:
+
+```bash
+SHIP_BD_ID=$(bd q "Ship: {ITEM_ID}" --type task 2>/dev/null || echo "")
+[ -n "$SHIP_BD_ID" ] && bd update "$SHIP_BD_ID" --claim 2>/dev/null || true
+```
+
+Silencioso se `bd` não disponível. Guardar `$SHIP_BD_ID` para fechar após deploy.
+
 ### 1. Pre-Ship Checklist
 
 - [ ] Testes passando (unit + integration + e2e)
@@ -84,6 +95,14 @@ python .agents/skills/70-ship/scripts/ship-log.py --item {ITEM}
 ```
 
 Mover item para `.agents/kanban/done/{ITEM}/`
+
+### 7. Beads close — fase ship (FEAT-018)
+
+Após ship bem-sucedido e item movido para done:
+
+```bash
+[ -n "$SHIP_BD_ID" ] && bd close "$SHIP_BD_ID" 2>/dev/null || true
+```
 
 ## Regras de Ouro
 

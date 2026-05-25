@@ -111,6 +111,18 @@ Após design aprovado e locked:
 → /a-steering approve tasks ITEM-XXX
 ```
 
+Após aprovação de tasks.md, sincronizar com Beads (FEAT-017):
+
+```bash
+python scripts/beads-sync.py \
+  --item {ITEM_ID} \
+  --tasks .agents/kanban/in-progress/{ITEM_ID}/tasks.md \
+  --task-yaml .agents/kanban/in-progress/{ITEM_ID}/task.yaml \
+  --harness harness.yaml
+```
+
+Silencioso se `integrations.beads.enabled=false` ou `bd` ausente.
+
 ### Fase 4 — UI (se aplicável)
 
 Se a feature tem interface:
