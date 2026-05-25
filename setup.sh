@@ -74,7 +74,9 @@ deploy_agent_home() {
   _rsync "$HARNESS_DIR/.agents/commands/"         "$AGENT_HOME/commands/"
   _rsync "$HARNESS_DIR/.agents/cerimonias/"       "$AGENT_HOME/cerimonias/"
   _rsync "$HARNESS_DIR/.agents/memory/identity/"  "$AGENT_HOME/memory/identity/"
-  _rsync "$HARNESS_DIR/.agents/config/"           "$AGENT_HOME/config/"
+  # project-registry.yaml accumulates project registrations — never delete it on sync
+  rsync -a --delete --exclude="project-registry.yaml" \
+    "$HARNESS_DIR/.agents/config/" "$AGENT_HOME/config/"
   _rsync "$HARNESS_DIR/templates/"                "$AGENT_HOME/templates/"
   _rsync "$HARNESS_DIR/scripts/"                  "$AGENT_HOME/scripts/"
 
