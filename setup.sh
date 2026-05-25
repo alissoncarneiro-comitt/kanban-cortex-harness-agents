@@ -74,7 +74,9 @@ deploy_agent_home() {
   _rsync "$HARNESS_DIR/.agents/commands/"         "$AGENT_HOME/commands/"
   _rsync "$HARNESS_DIR/.agents/cerimonias/"       "$AGENT_HOME/cerimonias/"
   _rsync "$HARNESS_DIR/.agents/memory/identity/"  "$AGENT_HOME/memory/identity/"
-  _rsync "$HARNESS_DIR/.agents/config/"           "$AGENT_HOME/config/"
+  # project-registry.yaml accumulates project registrations — never delete it on sync
+  rsync -a --delete --exclude="project-registry.yaml" \
+    "$HARNESS_DIR/.agents/config/" "$AGENT_HOME/config/"
   _rsync "$HARNESS_DIR/templates/"                "$AGENT_HOME/templates/"
   _rsync "$HARNESS_DIR/scripts/"                  "$AGENT_HOME/scripts/"
 
@@ -88,6 +90,12 @@ deploy_agent_home() {
 
   # Store harness source path for future updates
   echo "harness_dir=$HARNESS_DIR" > "$AGENT_HOME/.harness-source"
+
+  # Initialize project registry if not exists (never overwrite — projects accumulate here)
+  REGISTRY_PATH="$AGENT_HOME/config/project-registry.yaml"
+  if [ ! -f "$REGISTRY_PATH" ]; then
+    printf 'version: "1.0"\nprojects: []\n' > "$REGISTRY_PATH"
+  fi
 
   echo "   ✅ $AGENT_HOME ready"
 }

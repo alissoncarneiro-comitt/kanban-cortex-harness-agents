@@ -133,7 +133,37 @@ mkdir -p .github
 # apenas se .github/copilot-instructions.md não existir
 ```
 
-### 8. Iniciar Cockpit (Kanban Board UI)
+### 9. Registrar projeto no hub de projetos
+
+Registrar o projeto atual no registry global para o cockpit exibir o hub multi-projeto.
+Executar o seguinte Python (idempotente — não sobrescreve entradas existentes do mesmo projeto):
+
+```python
+import sys, re
+from pathlib import Path
+
+_agent_home = Path.home() / ".kanban-cortex-harness-agents"
+sys.path.insert(0, str(_agent_home))
+
+from scripts.cockpit.project_registry import (
+    load_project_registry, save_project_registry,
+    add_or_update_project, ProjectEntry,
+)
+
+_registry_path = _agent_home / "config" / "project-registry.yaml"
+_cwd = Path.cwd()
+_project_id = re.sub(r"[^a-z0-9-]", "-", _cwd.name.lower()).strip("-") or "project"
+
+_registry = load_project_registry(_registry_path)
+_entry = ProjectEntry(project_id=_project_id, name=_cwd.name, root_path=_cwd)
+_registry = add_or_update_project(_registry, _entry)
+save_project_registry(_registry_path, _registry)
+print(f"Hub: projeto '{_project_id}' registrado em {_registry_path}")
+```
+
+Falhas são silenciosas (não bloqueia o bootstrap).
+
+### 11. Iniciar Cockpit (Kanban Board UI)
 
 Iniciar o servidor Cockpit em background para visualização em tempo real:
 
