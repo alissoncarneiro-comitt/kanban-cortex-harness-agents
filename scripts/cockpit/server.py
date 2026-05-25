@@ -21,7 +21,15 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlsplit
+
+from scripts.cockpit.project_registry import (
+    ProjectEntry,
+    ProjectRegistry,
+    ProjectRegistryError,
+    load_project_registry,
+    resolve_project_board_path,
+)
 
 # Tenta importar PyYAML. A flag de teste força o parser stdlib.
 try:
@@ -283,11 +291,94 @@ def _rich_markdown_enabled() -> bool:
     )
 
 
+def _project_hub_enabled() -> bool:
+    return os.environ.get("COCKPIT_PROJECT_HUB_ENABLED", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 def build_cockpit_config() -> dict:
     return {
         "rich_markdown_enabled": _rich_markdown_enabled(),
         "operations_ui_enabled": _operations_ui_enabled(),
+        "project_hub_enabled": _project_hub_enabled(),
     }
+
+
+AGENT_HOME = Path(os.environ.get("KANBAN_CORTEX_AGENT_HOME", Path.home() / ".kanban-cortex-harness-agents"))
+PROJECT_REGISTRY_PATH = AGENT_HOME / "config" / "project-registry.yaml"
+
+
+def _load_project_registry() -> ProjectRegistry:
+    return load_project_registry(PROJECT_REGISTRY_PATH)
+
+
+def _project_to_payload(project: ProjectEntry) -> dict:
+    return {
+        "project_id": project.project_id,
+        "name": project.name,
+        "root_path": str(project.root_path),
+        "source_mode": project.source_mode,
+        "board_path": str(project.board_path),
+        "active": project.active,
+    }
+
+
+def build_projects_payload() -> dict:
+    registry = _load_project_registry()
+    return {
+        "enabled": _project_hub_enabled(),
+        "registry_path": str(PROJECT_REGISTRY_PATH),
+        "version": registry.version,
+        "projects": [_project_to_payload(project) for project in registry.projects],
+    }
+
+
+def _split_request_path(raw_path: str) -> tuple[str, dict[str, list[str]]]:
+    parsed = urlsplit(raw_path)
+    return parsed.path, parse_qs(parsed.query)
+
+
+def _query_value(query: dict[str, list[str]], key: str) -> str:
+    values = query.get(key) or []
+    return str(values[0]).strip() if values else ""
+
+
+def _resolve_project_board_path(query: dict[str, list[str]], default_board_path: Path) -> tuple[Path, str | None]:
+    if not _project_hub_enabled():
+        return Path(default_board_path), None
+
+    project_id = _query_value(query, "project_id")
+    if not project_id:
+        return Path(default_board_path), None
+
+    source = _query_value(query, "source").lower() or None
+    try:
+        registry = _load_project_registry()
+    except ProjectRegistryError as exc:
+        return Path(default_board_path), str(exc)
+
+    project = next((entry for entry in registry.projects if entry.project_id == project_id), None)
+    if project is None:
+        return Path(default_board_path), f"project not registered: {project_id}"
+
+    if source and source not in {"project", "hub"}:
+        return Path(default_board_path), f"invalid source: {source}"
+    if source and source != project.source_mode:
+        return Path(default_board_path), f"source mismatch for project {project_id}"
+
+    try:
+        return resolve_project_board_path(project), None
+    except ProjectRegistryError as exc:
+        return Path(default_board_path), str(exc)
+
+
+def _resolution_error_status(message: str) -> int:
+    if message.startswith("project not registered:"):
+        return 404
+    if "project registry" in message:
+        return 500
+    return 400
 
 
 def _read_yaml_file(path: Path) -> tuple[dict | None, str | None]:
@@ -694,27 +785,30 @@ class CockpitHandler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------ #
 
     def do_GET(self):
-        if self.path == "/":
+        path, query = _split_request_path(self.path)
+        if path == "/":
             self._serve_html()
-        elif self.path == "/api/config":
+        elif path == "/api/config":
             self._serve_config()
-        elif self.path == "/markdown-renderer.js":
+        elif path == "/markdown-renderer.js":
             self._serve_markdown_renderer()
-        elif self.path == "/api/board":
-            self._serve_board()
-        elif self.path.startswith("/api/item/") and "/artifact/" in self.path:
+        elif path == "/api/projects":
+            self._serve_projects()
+        elif path == "/api/board":
+            self._serve_board(query)
+        elif path.startswith("/api/item/") and "/artifact/" in path:
             if _operations_ui_enabled():
-                item_part, artifact_part = self.path[len("/api/item/"):].split("/artifact/", 1)
-                self._serve_item_artifact(item_part, artifact_part)
+                item_part, artifact_part = path[len("/api/item/"):].split("/artifact/", 1)
+                self._serve_item_artifact(item_part, artifact_part, query)
             else:
                 self._send_json({"error": "not found"}, status=404)
-        elif self.path.startswith("/api/item/"):
+        elif path.startswith("/api/item/"):
             if _operations_ui_enabled():
-                item_id = self.path[len("/api/item/"):]
-                self._serve_item(item_id)
+                item_id = path[len("/api/item/"):]
+                self._serve_item(item_id, query)
             else:
                 self._send_json({"error": "not found"}, status=404)
-        elif self.path == "/api/events":
+        elif path == "/api/events":
             self._serve_sse()
         else:
             self._send_json({"error": "not found"}, status=404)
@@ -752,6 +846,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
     def _serve_config(self):
         self._send_json(build_cockpit_config(), status=200)
 
+    def _serve_projects(self):
+        try:
+            self._send_json(build_projects_payload(), status=200)
+        except ProjectRegistryError as exc:
+            self._send_json({"error": str(exc)}, status=500)
+
     def _serve_markdown_renderer(self):
         js_path = self.__class__.html_path.parent / "markdown-renderer.js"
         if not js_path.is_file():
@@ -771,8 +871,15 @@ class CockpitHandler(BaseHTTPRequestHandler):
     #  GET /api/board                                                      #
     # ------------------------------------------------------------------ #
 
-    def _serve_board(self):
-        data, error = read_board(self.__class__.board_path)
+    def _serve_board(self, query: dict[str, list[str]] | None = None):
+        resolved_board_path = self.__class__.board_path
+        if query is not None:
+            resolved_board_path, resolution_error = _resolve_project_board_path(query, resolved_board_path)
+            if resolution_error:
+                self._send_json({"error": resolution_error}, status=_resolution_error_status(resolution_error))
+                return
+
+        data, error = read_board(resolved_board_path)
         if error:
             self._send_json({"error": error}, status=500)
             return
@@ -788,12 +895,24 @@ class CockpitHandler(BaseHTTPRequestHandler):
     #  GET /api/item/{id}                                                 #
     # ------------------------------------------------------------------ #
 
-    def _serve_item(self, item_id: str):
-        data, status = build_item_detail(self.__class__.board_path, item_id)
+    def _serve_item(self, item_id: str, query: dict[str, list[str]] | None = None):
+        resolved_board_path = self.__class__.board_path
+        if query is not None:
+            resolved_board_path, resolution_error = _resolve_project_board_path(query, resolved_board_path)
+            if resolution_error:
+                self._send_json({"error": resolution_error}, status=_resolution_error_status(resolution_error))
+                return
+        data, status = build_item_detail(resolved_board_path, item_id)
         self._send_json(data or {"error": "item detail unavailable"}, status=status)
 
-    def _serve_item_artifact(self, item_id: str, artifact_id: str):
-        data, status = read_item_artifact(self.__class__.board_path, item_id, artifact_id)
+    def _serve_item_artifact(self, item_id: str, artifact_id: str, query: dict[str, list[str]] | None = None):
+        resolved_board_path = self.__class__.board_path
+        if query is not None:
+            resolved_board_path, resolution_error = _resolve_project_board_path(query, resolved_board_path)
+            if resolution_error:
+                self._send_json({"error": resolution_error}, status=_resolution_error_status(resolution_error))
+                return
+        data, status = read_item_artifact(resolved_board_path, item_id, artifact_id)
         self._send_json(data or {"error": "artifact unavailable"}, status=status)
 
     # ------------------------------------------------------------------ #
