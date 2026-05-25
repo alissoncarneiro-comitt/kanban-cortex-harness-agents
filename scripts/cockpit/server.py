@@ -378,8 +378,6 @@ def _resolve_project_board_path(query: dict[str, list[str]], default_board_path:
 
     if source and source not in {"project", "hub"}:
         return Path(default_board_path), f"invalid source: {source}"
-    if source and source != project.source_mode:
-        return Path(default_board_path), f"source mismatch for project {project_id}"
 
     try:
         return resolve_project_board_path(project), None
