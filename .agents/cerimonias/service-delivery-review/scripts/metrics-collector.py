@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
 """
 Coleta métricas Kanban do diretório done/ e gera relatório de review.
+
+Paths resolvidos em ordem de prioridade:
+  1. Variável de ambiente KANBAN_ROOT  (ex: export KANBAN_ROOT=/home/x/proj/.agents/kanban)
+  2. Auto-detecção: sobe a árvore de diretórios procurando .agents/kanban/board.yaml
+  3. Fallback: .agents/kanban/ relativo ao Cwd
 """
 
+import os
 import yaml, json
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
 
-DONE_DIR = Path("kanban/done")
-REVIEW_DIR = Path("kanban/reviews")
+
+def _resolve_kanban_root() -> Path:
+    """Resolve o diretório kanban/ de forma robusta independente do Cwd."""
+    env = os.environ.get("KANBAN_ROOT")
+    if env:
+        return Path(env)
+
+    cwd = Path.cwd()
+    for parent in [cwd, *cwd.parents]:
+        candidate = parent / ".agents" / "kanban"
+        if (candidate / "board.yaml").exists():
+            return candidate
+
+    return Path(".agents/kanban")
+
+
+_KANBAN_ROOT = _resolve_kanban_root()
+DONE_DIR = _KANBAN_ROOT / "done"
+REVIEW_DIR = _KANBAN_ROOT / "reviews"
 
 def parse_task(task_dir: Path):
     meta_file = task_dir / "task.yaml"

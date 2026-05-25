@@ -67,7 +67,7 @@ def prioritize():
         "ranking": items
     }
 
-    out_path = Path("kanban/backlog-ranking.json")
+    out_path = BACKLOG_DIR.parent / "backlog-ranking.json"
     out_path.write_text(json.dumps(output, indent=2, default=str), encoding="utf-8")
 
     print(f"=== BACKLOG RANKING (WSJF) ===")

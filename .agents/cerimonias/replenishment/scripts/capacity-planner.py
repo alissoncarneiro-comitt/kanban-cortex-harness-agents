@@ -1,13 +1,33 @@
 #!/usr/bin/env python3
 """
 Calcula capacidade atual do swarm e slots disponíveis para replenishment.
+
+Paths resolvidos em ordem:
+  1. KANBAN_ROOT env var
+  2. Auto-detecção: sobe a árvore procurando .agents/kanban/board.yaml
+  3. Fallback: .agents/kanban/ relativo ao Cwd
 """
 
+import os
 import yaml
 from pathlib import Path
 
-BOARD = Path("kanban/board.yaml")
-SWARM = Path(".agents/swarm.yaml")
+
+def _resolve_kanban_root() -> Path:
+    env = os.environ.get("KANBAN_ROOT")
+    if env:
+        return Path(env)
+    cwd = Path.cwd()
+    for parent in [cwd, *cwd.parents]:
+        candidate = parent / ".agents" / "kanban"
+        if (candidate / "board.yaml").exists():
+            return candidate
+    return Path(".agents/kanban")
+
+
+_KANBAN_ROOT = _resolve_kanban_root()
+BOARD = _KANBAN_ROOT / "board.yaml"
+SWARM = _KANBAN_ROOT.parent.parent / ".agents" / "swarm.yaml"
 
 def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
