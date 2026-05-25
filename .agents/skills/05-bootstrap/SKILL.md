@@ -163,6 +163,36 @@ print(f"Hub: projeto '{_project_id}' registrado em {_registry_path}")
 
 Falhas são silenciosas (não bloqueia o bootstrap).
 
+### 10. Inicializar Beads (se habilitado)
+
+Se `integrations.beads.enabled: true` em `~/.kanban-cortex-harness-agents/harness.yaml` e `bd` disponível, inicializar banco Beads no projeto:
+
+```bash
+_HARNESS_YAML="$HOME/.kanban-cortex-harness-agents/harness.yaml"
+_BEADS_ENABLED=$(python3 -c "
+import sys, pathlib
+try:
+    import yaml
+    d = yaml.safe_load(pathlib.Path('$_HARNESS_YAML').read_text()) or {}
+    print('true' if d.get('integrations', {}).get('beads', {}).get('enabled') else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+
+if [ "$_BEADS_ENABLED" = "true" ] && command -v bd &>/dev/null; then
+    if [ ! -d ".beads" ]; then
+        bd init --stealth 2>/dev/null \
+            && echo "   ✅ Beads inicializado (.beads/)" \
+            || echo "   ⚠️  Falha ao inicializar Beads — rode 'bd init --stealth' manualmente"
+    else
+        echo "   ℹ️  Beads já inicializado (.beads/ existe)"
+    fi
+fi
+```
+
+`--stealth` exclui `.beads/` via `.git/info/exclude` (local, não commitado) — correto para ferramenta opcional por-desenvolvedor.
+Falhas são silenciosas (não bloqueia o bootstrap).
+
 ### 11. Iniciar Cockpit (Kanban Board UI)
 
 Iniciar o servidor Cockpit em background para visualização em tempo real:
@@ -187,6 +217,10 @@ Confirmar ao usuário: "Cockpit disponível em http://127.0.0.1:8337"
   .agents/decisions/ ← Log de decisões arquitetural
   specs/             ← Specs aprovadas
   docs/              ← Documentação Diataxis
+
+🔌 Integrações ativas: [listar se beads.enabled ou rtk.enabled]
+   Beads: .beads/ pronto — use 'bd ready' para ver tasks
+   RTK:   ativo — use 'rtk gain' para ver economia
 
 🖥️  Cockpit (Kanban Board): http://127.0.0.1:8337
 
