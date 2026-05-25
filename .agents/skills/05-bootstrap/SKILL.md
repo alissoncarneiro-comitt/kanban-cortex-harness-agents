@@ -55,7 +55,7 @@ tests/
   regression/
 ```
 
-Criar symlink `kanban → .agents/kanban` na raiz do projeto (se não existir).
+Não criar symlink `kanban` na raiz — o diretório vive exclusivamente em `.agents/kanban/`.
 
 ### 3. Copiar templates de steering
 
@@ -165,7 +165,7 @@ Falhas são silenciosas (não bloqueia o bootstrap).
 
 ### 10. Inicializar Beads (se habilitado)
 
-Se `integrations.beads.enabled: true` em `~/.kanban-cortex-harness-agents/harness.yaml` e `bd` disponível, inicializar banco Beads no projeto:
+Se `integrations.beads.enabled: true` em `~/.kanban-cortex-harness-agents/harness.yaml` e `bd` disponível, inicializar banco Beads na **raiz do repositório git** (não no subdiretório atual):
 
 ```bash
 _HARNESS_YAML="$HOME/.kanban-cortex-harness-agents/harness.yaml"
@@ -179,18 +179,29 @@ except Exception:
     print('false')
 " 2>/dev/null || echo "false")
 
+# Encontrar a raiz git mais externa (sobe até achar o .git mais alto)
+_find_outermost_git_root() {
+    local _dir="$PWD" _root=""
+    while [ "$_dir" != "/" ]; do
+        [ -d "$_dir/.git" ] && _root="$_dir"
+        _dir=$(dirname "$_dir")
+    done
+    echo "${_root:-$PWD}"
+}
+
 if [ "$_BEADS_ENABLED" = "true" ] && command -v bd &>/dev/null; then
-    if [ ! -d ".beads" ]; then
-        bd init --stealth 2>/dev/null \
-            && echo "   ✅ Beads inicializado (.beads/)" \
-            || echo "   ⚠️  Falha ao inicializar Beads — rode 'bd init --stealth' manualmente"
+    _BEADS_ROOT=$(_find_outermost_git_root)
+    if [ ! -d "$_BEADS_ROOT/.beads" ]; then
+        (cd "$_BEADS_ROOT" && bd init --stealth 2>/dev/null) \
+            && echo "   ✅ Beads inicializado em $_BEADS_ROOT/.beads/" \
+            || echo "   ⚠️  Falha — rode 'cd $_BEADS_ROOT && bd init --stealth' manualmente"
     else
-        echo "   ℹ️  Beads já inicializado (.beads/ existe)"
+        echo "   ℹ️  Beads já inicializado em $_BEADS_ROOT/.beads/"
     fi
 fi
 ```
 
-`--stealth` exclui `.beads/` via `.git/info/exclude` (local, não commitado) — correto para ferramenta opcional por-desenvolvedor.
+`--stealth` exclui `.beads/` via `.git/info/exclude` (local, não commitado).
 Falhas são silenciosas (não bloqueia o bootstrap).
 
 ### 11. Iniciar Cockpit (Kanban Board UI)
