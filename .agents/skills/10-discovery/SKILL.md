@@ -121,6 +121,9 @@ python scripts/audit_writer.py phase_start \
   --session "${CLAUDE_SESSION_ID:-$(python3 -c "import uuid; print(uuid.uuid4())")}" \
   --tokens-input "${CLAUDE_INPUT_TOKENS:-}" \
   --context-pct "${CLAUDE_CONTEXT_PCT:-}"
+
+# FEAT-013: item em backlog → coluna discover ao iniciar discovery
+python scripts/steering-gate.py --item {ITEM_ID} --gate discover-start
 ```
 
 ### Ao finalizar este skill (phase_end)
