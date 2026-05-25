@@ -51,6 +51,17 @@ Se `requirements.md` não tiver status APPROVED ou não houver branch `feature/{
 
 ## Workflow
 
+### 0. Beads claim — fase test (FEAT-018)
+
+Criar issue de QA no Beads e clamar antes de iniciar:
+
+```bash
+TEST_BD_ID=$(bd q "Test: {ITEM_ID}" --type task 2>/dev/null || echo "")
+[ -n "$TEST_BD_ID" ] && bd update "$TEST_BD_ID" --claim 2>/dev/null || true
+```
+
+Silencioso se `bd` não disponível. Guardar `$TEST_BD_ID` para fechar ao finalizar.
+
 ### 1. E2E (browser real)
 
 ```bash
@@ -89,6 +100,12 @@ python .agents/skills/60-test/scripts/coverage-gate.py --min 0.60
 
 ```bash
 python .agents/skills/60-test/scripts/regression-gen.py --bug-id {ID}
+```
+
+Ao finalizar QA verde, fechar a issue de test no Beads:
+
+```bash
+[ -n "$TEST_BD_ID" ] && bd close "$TEST_BD_ID" 2>/dev/null || true
 ```
 
 ## Regras de Ouro

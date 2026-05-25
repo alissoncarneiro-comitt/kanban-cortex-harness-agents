@@ -63,6 +63,17 @@ python3 scripts/board-validate.py --item {ITEM_ID}
 - Exit ≠ 0 → interromper review; seguir `docs/how-to/recover-board-state.md`
 - Exit 0 → prosseguir (WARN em órfãos não bloqueia `--item`)
 
+### 0.1 Beads claim — fase review (FEAT-018)
+
+Criar issue de review no Beads e clamar antes de iniciar:
+
+```bash
+REVIEW_BD_ID=$(bd q "Review: {ITEM_ID}" --type task 2>/dev/null || echo "")
+[ -n "$REVIEW_BD_ID" ] && bd update "$REVIEW_BD_ID" --claim 2>/dev/null || true
+```
+
+Silencioso se `bd` não disponível. Guardar `$REVIEW_BD_ID` para usar na decisão final.
+
 ### 1. Boundary Check (cc-sdd)
 
 ```bash
@@ -98,7 +109,10 @@ python .agents/skills/50-review/scripts/review-report-gen.py \
 
 ### Decisão
 
-- **APPROVE** → `/a-test`
+- **APPROVE** → fechar issue de review no Beads e prosseguir para `/a-test`:
+  ```bash
+  [ -n "$REVIEW_BD_ID" ] && bd close "$REVIEW_BD_ID" 2>/dev/null || true
+  ```
 - **REQUEST CHANGES** → builder corrige (ver `review-feedback.md` abaixo)
 - **REJECT 2x** → auto-debug
 
