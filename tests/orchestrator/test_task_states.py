@@ -52,7 +52,8 @@ def test_update_task_status_sets_in_progress(mock_task_yaml):
     with task_path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
     
-    assert data["task_progress"][task_id] == "in_progress"
+    # pipeline._update_task_status normaliza "in_progress" → "running" no YAML
+    assert data["task_progress"][task_id] == "running"
 
 def test_handoff_maps_done_to_complete(mock_task_yaml, monkeypatch):
     item_id, task_path, base_dir = mock_task_yaml
