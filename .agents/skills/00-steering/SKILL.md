@@ -115,6 +115,22 @@ Projeto **não inicializado** se:
 - [ ] Acceptance criteria Given-When-Then (3–7)
 - [ ] WSJF ou prioridade justificada
 - [ ] `stakeholder-map.md` presente
+- [ ] Após registrar aprovação, promover coluna no board (FEAT-013):
+
+```bash
+python scripts/steering-gate.py --item {ITEM} --gate approve-brief
+# equivalente: trigger steering.approve.brief → coluna spec
+```
+
+Snippet reutilizável (qualquer gate):
+
+```bash
+python scripts/steering-gate.py --item {ITEM} --gate approve-brief   # → spec
+python scripts/steering-gate.py --item {ITEM} --gate approve-tasks   # → build
+python scripts/steering-gate.py --item {ITEM} --trigger steering.approve.requirements
+```
+
+Desligar sync: `BOARD_AUTO_PROMOTE=false`.
 
 ### `approve design`
 
@@ -127,7 +143,14 @@ Projeto **não inicializado** se:
 - [ ] Cada task com `_Boundary:_` e `_Depends:_`
 - [ ] Test matrix cobre requisitos
 - [ ] Registrar `gates.tasks.approved = true` em `task.yaml`
-- [ ] Após registrar aprovação, disparar pipeline em background:
+- [ ] Após registrar aprovação, promover coluna no board (FEAT-013):
+
+```bash
+python scripts/steering-gate.py --item {ITEM} --gate approve-tasks
+# equivalente: trigger steering.approve.tasks → coluna build
+```
+
+- [ ] Disparar pipeline em background (opt-in):
 
 ```bash
 PIPELINE_ENABLED=true python scripts/orchestrator/pipeline.py run {ITEM} &

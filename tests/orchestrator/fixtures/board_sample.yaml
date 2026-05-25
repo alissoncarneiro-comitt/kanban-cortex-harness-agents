@@ -1,0 +1,33 @@
+board:
+  name: "Test Board"
+  columns:
+    - name: "Backlog"
+      wip_limit: null
+    - name: "Discover"
+      wip_limit: 3
+    - name: "Spec"
+      wip_limit: 3
+    - name: "Build"
+      wip_limit: 5
+    - name: "Review"
+      wip_limit: 4
+    - name: "Test"
+      wip_limit: 3
+    - name: "Ship"
+      wip_limit: 2
+    - name: "Done"
+      wip_limit: null
+  last_updated: "2026-01-01T00:00:00Z"
+  items:
+    backlog:
+      - id: "FEAT-001"
+        title: "Backlog Item"
+    discover: []
+    spec: []
+    build:
+      - id: "FEAT-013"
+        title: "Promoção Automática de Fases no Board"
+    review: []
+    test: []
+    ship: []
+    done: []

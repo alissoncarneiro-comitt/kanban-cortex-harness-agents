@@ -91,6 +91,92 @@ def collect_board_item_ids(board: dict) -> set[str]:
     return ids
 
 
+def _column_rank(column: str) -> int:
+    try:
+        return PIPELINE_COLUMNS.index(column)
+    except ValueError:
+        return -1
+
+
+def find_item_column(board: dict, item_id: str) -> str | None:
+    items = board.get("board", {}).get("items", {}) or {}
+    for column, entries in items.items():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and str(entry.get("id")) == item_id:
+                return column
+    return None
+
+
+def load_phase_status(item_id: str, in_progress_root: Path) -> dict[str, object] | None:
+    task_path = in_progress_root / item_id / "task.yaml"
+    if not task_path.is_file():
+        return None
+    try:
+        data = yaml.safe_load(task_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    phase_status = data.get("phase_status")
+    if not isinstance(phase_status, dict):
+        return {}
+    return phase_status
+
+
+def expected_min_column_from_phase_status(phase_status: dict[str, object]) -> str | None:
+    """Coluna mínima no board dado phase_status de task.yaml."""
+    min_column: str | None = None
+    max_rank = -1
+    for phase in PIPELINE_PHASE_ORDER:
+        status = phase_status.get(phase)
+        if status is None:
+            continue
+        target = PHASE_STATUS_MIN_COLUMN.get((phase, str(status)))
+        if target is None:
+            continue
+        rank = _column_rank(target)
+        if rank > max_rank:
+            max_rank = rank
+            min_column = target
+    return min_column
+
+
+def check_phase_column_drift(
+    board: dict,
+    in_progress_root: Path,
+    item_id: str | None = None,
+) -> list[str]:
+    """WARN quando phase_status indica coluna mínima à frente da coluna atual."""
+    warnings: list[str] = []
+    if item_id:
+        item_ids = [item_id]
+    elif in_progress_root.is_dir():
+        item_ids = sorted(
+            entry.name for entry in in_progress_root.iterdir() if entry.is_dir()
+        )
+    else:
+        return warnings
+
+    for iid in item_ids:
+        phase_status = load_phase_status(iid, in_progress_root)
+        if phase_status is None:
+            continue
+        expected = expected_min_column_from_phase_status(phase_status)
+        if not expected:
+            continue
+        actual = find_item_column(board, iid)
+        if actual is None:
+            continue
+        if _column_rank(actual) < _column_rank(expected):
+            warnings.append(
+                f"PHASE COLUMN DRIFT: {iid} expected min column '{expected}' "
+                f"but card is in '{actual}' ({playbook_ref('phase-column-drift')})"
+            )
+    return warnings
+
+
 def validate_wip(board: dict) -> list[str]:
     errors: list[str] = []
     columns = board.get("board", {}).get("columns", []) or []
@@ -154,6 +240,32 @@ def default_git_runner(args: list[str], cwd: Path) -> subprocess.CompletedProces
 
 
 GIT_LOCK_VERIFY_ERROR = "HARNESS ERROR: cannot verify lock — git unavailable"
+
+PIPELINE_COLUMNS = [
+    "backlog",
+    "discover",
+    "spec",
+    "build",
+    "review",
+    "test",
+    "ship",
+    "done",
+]
+
+# phase_status (phase, status) → coluna mínima esperada no board (FEAT-013)
+PHASE_STATUS_MIN_COLUMN: dict[tuple[str, str], str] = {
+    ("build", "done"): "review",
+    ("build", "failed"): "build",
+    ("review", "approved"): "test",
+    ("review", "changes_requested"): "build",
+    ("review", "rejected"): "build",
+    ("test", "passed"): "ship",
+    ("test", "failed"): "build",
+    ("ship", "done"): "done",
+    ("ship", "failed"): "ship",
+}
+
+PIPELINE_PHASE_ORDER = ("build", "review", "test", "ship")
 
 
 def git_commits_after_lock(
@@ -376,6 +488,20 @@ def run_full_checks(
     else:
         results.append(CheckResult("Orphan items", Severity.OK.value, "none"))
 
+    drift_msgs = check_phase_column_drift(board, in_progress)
+    if drift_msgs:
+        results.append(
+            CheckResult(
+                "Phase column drift",
+                Severity.WARN.value,
+                "; ".join(drift_msgs),
+            )
+        )
+    else:
+        results.append(
+            CheckResult("Phase column drift", Severity.OK.value, "aligned")
+        )
+
     return results, exit_code
 
 
@@ -492,6 +618,16 @@ def main(argv: list[str] | None = None) -> int:
             for message in lock_errors:
                 print(message, file=sys.stderr)
             return 1
+        try:
+            board = load_board(board_path)
+        except (FileNotFoundError, ValueError, RuntimeError):
+            print(
+                f"HARNESS ERROR: cannot load board.yaml ({playbook_ref('yaml-invalido')})",
+                file=sys.stderr,
+            )
+            return 1
+        for msg in check_phase_column_drift(board, in_progress, item_id=args.item):
+            print(msg)
         print(f"OK: board.yaml valid; no lock violations for {args.item}")
         return 0
 

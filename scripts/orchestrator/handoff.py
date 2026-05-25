@@ -294,6 +294,71 @@ def write_handoff_packet(
         yaml.dump(packet, f, default_flow_style=False, allow_unicode=True)
 
 
+def _board_auto_promote_enabled() -> bool:
+    """BOARD_AUTO_PROMOTE=false desliga sync de coluna (FEAT-013 TASK-002)."""
+    value = _os.environ.get("BOARD_AUTO_PROMOTE", "true").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _resolve_board_path(task_yaml_path: Path) -> Path:
+    """Deriva board.yaml a partir do caminho de task.yaml."""
+    parts = task_yaml_path.parts
+    if "kanban" in parts:
+        idx = parts.index("kanban")
+        kanban_root = Path(*parts[: idx + 1])
+        return kanban_root / "board.yaml"
+    root = Path(BASE_DIR)
+    for candidate in (
+        root / ".agents" / "kanban" / "board.yaml",
+        root / "kanban" / "board.yaml",
+    ):
+        if candidate.is_file():
+            return candidate
+    return root / ".agents" / "kanban" / "board.yaml"
+
+
+def _sync_board_after_handoff(
+    item_id: str,
+    phase: str,
+    status: str,
+    task_yaml_path: Path,
+    *,
+    skip_promote: bool = False,
+) -> None:
+    """Best-effort: promove coluna no board após handoff (não reverte task.yaml)."""
+    if skip_promote or not _board_auto_promote_enabled():
+        return
+
+    try:
+        from orchestrator.board_promote import promote, trigger_from_handoff
+    except ImportError:  # pragma: no cover
+        from board_promote import promote, trigger_from_handoff
+
+    board_path = _resolve_board_path(task_yaml_path)
+    trigger = trigger_from_handoff(phase, status)
+    try:
+        result = promote(item_id, trigger, board_path=board_path)
+    except ValueError as exc:
+        print(f"WARN [board-promote]: {exc}", file=sys.stderr)
+        return
+    except (FileNotFoundError, OSError) as exc:
+        print(f"WARN [board-promote]: falha ao sincronizar board: {exc}", file=sys.stderr)
+        return
+
+    if not result.ok:
+        print(
+            f"WARN [board-promote]: item={item_id} trigger={trigger} reason={result.reason}",
+            file=sys.stderr,
+        )
+        return
+    if result.skipped:
+        return
+    print(
+        f"[board-promote] {item_id} {result.from_column} -> {result.to_column}",
+        file=sys.stdout,
+    )
+
+
 def _ensure_pipeline_section(data: dict) -> None:
     """Garante que as seções pipeline e phase_status existem no data."""
     if "pipeline" not in data or not isinstance(data["pipeline"], dict):
@@ -379,8 +444,8 @@ def record_handoff(
         if "task_progress" not in data or not isinstance(data["task_progress"], dict):
             data["task_progress"] = {}
         task_state = status
-        if status in ("approved", "passed"):
-            task_state = "done"
+        if status in ("approved", "passed", "done"):
+            task_state = "complete"
         elif status in ("rejected", "changes_requested"):
             task_state = "failed"
         data["task_progress"][from_task] = task_state
@@ -419,6 +484,14 @@ def record_handoff(
         return 1
 
     print(f"[handoff] {item_id} phase={phase} status={status} registrado.", file=sys.stdout)
+
+    _sync_board_after_handoff(
+        item_id,
+        phase,
+        status,
+        path,
+        skip_promote=defer_phase_status,
+    )
 
     # Emite evento de auditoria (não-bloqueante)
     _call_audit_writer(item_id, phase, status)
