@@ -216,6 +216,76 @@ setup_antigravity() {
   _link_claude_skills "$HOME/.gemini/antigravity/skills"
 }
 
+# ── Optional integrations: Beads + RTK ───────────────────────────────────────
+
+_write_harness_integration() {
+  local tool="$1" enabled="$2"
+  local harness_yaml="$AGENT_HOME/harness.yaml"
+  python3 - "$harness_yaml" "$tool" "$enabled" <<'PYEOF'
+import sys, pathlib
+tool_name, enabled_val = sys.argv[2], sys.argv[3] == "true"
+p = pathlib.Path(sys.argv[1])
+try:
+    import yaml
+    data = yaml.safe_load(p.read_text()) or {}
+    integrations = data.setdefault("integrations", {})
+    integrations.setdefault(tool_name, {})["enabled"] = enabled_val
+    p.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False))
+except Exception:
+    pass  # graceful: don't break setup on yaml failure
+PYEOF
+}
+
+_check_optional_tools() {
+  echo ""
+  echo "🔌 Integrações opcionais"
+
+  # ── Beads ──────────────────────────────────────────────────────────────────
+  if command -v bd &>/dev/null; then
+    echo "   ✅ Beads (bd) instalado"
+    _write_harness_integration "beads" true
+  else
+    echo "   ℹ️  Beads — issue tracker para agentes IA: https://github.com/gastownhall/beads"
+    printf "      Instalar Beads? [y/N] "
+    read -r _ans
+    if [[ "$_ans" =~ ^[Yy]$ ]]; then
+      if curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash; then
+        echo "   ✅ Beads instalado"
+        _write_harness_integration "beads" true
+      else
+        echo "   ⚠️  Falha ao instalar Beads — instale manualmente"
+        _write_harness_integration "beads" false
+      fi
+    else
+      echo "   ⏭️  Beads ignorado"
+      _write_harness_integration "beads" false
+    fi
+  fi
+
+  # ── RTK ────────────────────────────────────────────────────────────────────
+  if command -v rtk &>/dev/null; then
+    echo "   ✅ RTK instalado"
+    _write_harness_integration "rtk" true
+  else
+    echo "   ℹ️  RTK — proxy de tokens (60-90% economia): https://github.com/rtk-ai/rtk"
+    printf "      Instalar RTK? [y/N] "
+    read -r _ans
+    if [[ "$_ans" =~ ^[Yy]$ ]]; then
+      if curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh; then
+        rtk init -g 2>/dev/null || true
+        echo "   ✅ RTK instalado e configurado"
+        _write_harness_integration "rtk" true
+      else
+        echo "   ⚠️  Falha ao instalar RTK — instale manualmente"
+        _write_harness_integration "rtk" false
+      fi
+    else
+      echo "   ⏭️  RTK ignorado"
+      _write_harness_integration "rtk" false
+    fi
+  fi
+}
+
 # ── Auto-detect installed agents ─────────────────────────────────────────────
 
 _run_auto_detect() {
@@ -294,6 +364,8 @@ case "$TARGET" in
     _run_auto_detect
     ;;
 esac
+
+_check_optional_tools
 
 echo ""
 echo "🎉 Setup complete!"
